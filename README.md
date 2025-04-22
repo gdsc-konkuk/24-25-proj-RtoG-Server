@@ -1,6 +1,9 @@
-# 🔥 RtoG: Wildfire Detection Pipeline (YOLOv8 + Gemini Vision API)
+# 🔥 RtoG: Wildfire Fast Detection Server (Red to Green)
 
-This repository contains a wildfire detection pipeline using the Ultralytics YOLOv8 object detection model. It converts COCO-format fire datasets into YOLO format, trains the model, and uses video footage to detect early signs of wildfire.
+This repository powers the RtoG (Red to Green) server — an AI-driven system for fast and accurate wildfire detection.
+It uses YOLOv8 for real-time object detection and integrates Gemini Vision API for verification, enabling early fire detection from video footage like CCTV or drone sources.
+
+From red (wildfire) to green (safe forest) — detect fast, act faster.
 
 ---
 
