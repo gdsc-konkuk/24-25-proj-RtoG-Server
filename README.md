@@ -95,8 +95,7 @@ pip install ultralytics opencv-python tqdm numpy
 ## 📍 Notes
 - Original image size is preserved during letterbox resize
 - `runs/` folder may grow large, clean periodically
-- You can stop/resume training via `resume=True`
-- Sample/ and videos/ are not included in the repository due to size constraints.
+- Sample/ and videos/ are not included in the repository due to size constraints.   
 ➤ Please add them manually to the root directory if you want to run the full pipeline.
 - Only best.pt from runs/ is included to keep the repo size reasonable.
 
