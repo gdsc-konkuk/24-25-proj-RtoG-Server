@@ -1,0 +1,27 @@
+# Virtual environments
+venv/
+env/
+.yolov8env310/
+yolov8env310/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Dataset & video files (add manually)
+Sample/
+videos/
+
+# YOLO training outputs (only keep best.pt)
+runs/
+!runs/**/best.pt
+
+# Jupyter/IPython
+.ipynb_checkpoints/
+
+# Logs & misc
+*.log

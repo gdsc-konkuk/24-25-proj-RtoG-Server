@@ -1,0 +1,14 @@
+# 절대경로 (필요 시 수정)
+path: /Users/jihong/RtoG/processed 
+
+train: images
+val: images  # validation 분리 안 할 거면 그냥 train이랑 같게
+
+nc: 6  # 클래스 수
+names:
+  0: 흑색연기
+  1: 백색/회색연기
+  2: 화염
+  3: 구름
+  4: 안개/연무
+  5: 굴뚝연기
