@@ -8,17 +8,19 @@ This repository contains a wildfire detection pipeline using the Ultralytics YOL
 
 ```
 RtoG/
-├── processed/            # Resized images + YOLO-format labels
-├── runs/                 # Training results (✅ YOLOv8 output, only best.pt included)
-├── Sample/               # Original dataset (❌ Not included in repo (COCO-style dataset, add manually))
-│   ├── 01.원천데이터/        # Images in nested folders (JPG)
-│   └── 02.라벨링데이터/       # COCO-style JSON labels
-├── videos/               # Raw CCTV or simulated wildfire videos (MP4) (❌ Not included in repo (CCTV/wildfire videos, add manually))
-├── yolov8env310/         # Python virtual environment (optional)
-├── process_and_detect.py # Converts COCO to YOLO format (with letterbox resize)
-├── run_pipeline.py       # 10s video segmentation → YOLO → Gemini → Alert
-├── yolo_custom.yaml      # Dataset config file for training
-└── yolov8n.pt            # Base YOLOv8 model (pretrained)
+├── processed/             # Resized images + YOLO-format labels
+├── runs/                  # Training results (✅ YOLOv8 output, only `best.pt` included)
+├── Sample/                # Original dataset  
+│   ├── 01.원천데이터/         # Images in nested folders (JPG)  
+│   └── 02.라벨링데이터/        # COCO-style JSON labels  
+│   ❌ Not included in repo (COCO-style dataset, add manually)
+├── videos/                # Raw CCTV or simulated wildfire videos (MP4)  
+│   ❌ Not included in repo (CCTV/wildfire videos, add manually)
+├── yolov8env310/          # Python virtual environment (optional)
+├── process_and_detect.py  # Converts COCO to YOLO format (with letterbox resize)
+├── run_pipeline.py        # 10s video segmentation → YOLO → Gemini → Alert
+├── yolo_custom.yaml       # Dataset config file for YOLOv8 training
+└── yolov8n.pt             # Pretrained YOLOv8 base model (for transfer learning)
 ```
 
 ---
