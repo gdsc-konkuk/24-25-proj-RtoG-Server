@@ -41,9 +41,9 @@ python process_and_detect.py
 yolo detect train \
     data=yolo_custom.yaml \
     model=yolov8n.pt \
-    epochs=12 \
-    imgsz=416 \
-    batch=4 \
+    epochs=50 \
+    imgsz=640 \
+    batch=16 \
     project=runs \
     name=train
 ```
