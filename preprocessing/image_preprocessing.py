@@ -9,18 +9,48 @@ import os
 import json
 import cv2
 import numpy as np
+import argparse
+import sys
 from pathlib import Path
 
-# 경로 설정
-INPUT_IMAGES_DIR = "data/images"
-INPUT_LABELS_DIR = "data/labels"
-OUTPUT_IMAGES_DIR = "processed/images"
-OUTPUT_LABELS_DIR = "processed/labels"
-TARGET_SIZE = (640, 640)  # YOLO v11 타겟 크기
+def parse_args():
+    """명령줄 인수 파싱"""
+    parser = argparse.ArgumentParser(description='YOLO 이미지 전처리')
+    parser.add_argument('--input-dir', type=str, required=True,
+                        help='입력 데이터 디렉토리 (필수)')
+    parser.add_argument('--output-dir', type=str, required=True,
+                        help='출력 데이터 디렉토리 (필수)')
+    return parser.parse_args()
 
-# 출력 디렉토리 생성
-os.makedirs(OUTPUT_IMAGES_DIR, exist_ok=True)
-os.makedirs(OUTPUT_LABELS_DIR, exist_ok=True)
+# 전역 변수 선언
+args = None
+INPUT_IMAGES_DIR = None
+INPUT_LABELS_DIR = None
+OUTPUT_IMAGES_DIR = None
+OUTPUT_LABELS_DIR = None
+TARGET_SIZE = (640, 640)  # 고정된 타겟 크기
+
+def setup_paths():
+    """경로 설정"""
+    global INPUT_IMAGES_DIR, INPUT_LABELS_DIR, OUTPUT_IMAGES_DIR, OUTPUT_LABELS_DIR
+    
+    # 경로 설정
+    INPUT_IMAGES_DIR = os.path.join(args.input_dir, "images")
+    INPUT_LABELS_DIR = os.path.join(args.input_dir, "labels")
+    OUTPUT_IMAGES_DIR = os.path.join(args.output_dir, "images")
+    OUTPUT_LABELS_DIR = os.path.join(args.output_dir, "labels")
+    
+    # 출력 디렉토리 생성
+    os.makedirs(OUTPUT_IMAGES_DIR, exist_ok=True)
+    os.makedirs(OUTPUT_LABELS_DIR, exist_ok=True)
+    
+    # 입력 디렉토리 확인
+    if not os.path.exists(INPUT_IMAGES_DIR):
+        print(f"오류: 입력 이미지 디렉토리가 존재하지 않습니다: {INPUT_IMAGES_DIR}")
+        sys.exit(1)
+    if not os.path.exists(INPUT_LABELS_DIR):
+        print(f"오류: 입력 레이블 디렉토리가 존재하지 않습니다: {INPUT_LABELS_DIR}")
+        sys.exit(1)
 
 def process_image(image_path, output_path):
     """이미지를 로드하고 타겟 크기로 리사이즈 (종횡비 유지)"""
@@ -131,8 +161,22 @@ def save_yolo_label(yolo_data, output_path):
 
 def main():
     """메인 처리 함수"""
+    global args
+    args = parse_args()
+    setup_paths()
+    
+    print(f"입력 디렉토리: {args.input_dir}")
+    print(f"출력 디렉토리: {args.output_dir}")
+    print(f"타겟 크기: {TARGET_SIZE} (고정)")
+    
     # 이미지 디렉토리에서 모든 이미지를 처리
     image_files = list(Path(INPUT_IMAGES_DIR).glob('*.jpg')) + list(Path(INPUT_IMAGES_DIR).glob('*.jpeg')) + list(Path(INPUT_IMAGES_DIR).glob('*.png'))
+    
+    if not image_files:
+        print(f"오류: 처리할 이미지를 찾을 수 없습니다: {INPUT_IMAGES_DIR}")
+        sys.exit(1)
+    
+    print(f"총 {len(image_files)}개의 이미지를 처리합니다.")
     
     for image_path in image_files:
         # 이미지 기본 이름 얻기
@@ -165,4 +209,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    print("모든 이미지와 라벨 전처리 완료!")
+    print("모든 이미지와 라벨 전처리 완료!") 
