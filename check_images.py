@@ -12,8 +12,8 @@ import random
 from PIL import Image, ImageDraw, ImageFont
 
 # 경로 설정
-PROCESSED_IMAGES_DIR = "processed/images"
-PROCESSED_LABELS_DIR = "processed/labels"
+PROCESSED_IMAGES_DIR = "Sample/processed/images"
+PROCESSED_LABELS_DIR = "Sample/processed/labels"
 
 # 클래스 이름 정의 (YAML 파일과 동일하게 설정)
 CLASS_NAMES = {
@@ -180,7 +180,7 @@ def main():
     print(f"총 {len(image_files)}개의 이미지를 찾았습니다.")
     
     # 결과 저장 디렉토리
-    output_dir = "visualization_results"
+    output_dir = "Sample/result"
     os.makedirs(output_dir, exist_ok=True)
     
     for image_path in image_files:
@@ -202,15 +202,8 @@ def main():
             cv2.imwrite(output_path, result_image)
             print(f"시각화 완료: {output_path}")
             
-            # 결과 표시 (선택 사항)
-            cv2.imshow(f"Segmentation: {image_base_name}", result_image)
-            key = cv2.waitKey(0)
-            
-            # ESC 키로 종료
-            if key == 27:
-                break
+            # 결과 표시 제거 (사용자 요청에 따라)
     
-    cv2.destroyAllWindows()
     print("모든 이미지 시각화 완료!")
 
 if __name__ == "__main__":
