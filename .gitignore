@@ -25,3 +25,8 @@ runs/
 
 # Logs & misc
 *.log
+
+# Docker
+.dockerignore
+**/*.tar
+**/*.gz

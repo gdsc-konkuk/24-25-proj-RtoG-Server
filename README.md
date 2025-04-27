@@ -11,16 +11,24 @@ From red (wildfire) to green (safe forest) — detect fast, act faster.
 
 ```
 RtoG/
+├── preprocessing/         # Image preprocessing tools
+│   ├── Dockerfile        # Docker environment for preprocessing
+│   └── image_preprocessing.py # COCO to YOLO format converter
 ├── processed/             # Resized images + YOLO-format labels
 ├── runs/                  # Training results (✅ YOLOv8 output, only `best.pt` included)
 ├── Sample/                # Original dataset  
 │   ├── 01.원천데이터/         # Images in nested folders (JPG)  
-│   └── 02.라벨링데이터/        # COCO-style JSON labels  
+│   ├── 02.라벨링데이터/        # COCO-style JSON labels  
+│   ├── data/              # Copied source data
+│   ├── processed/         # Processed images and labels
+│   └── result/            # Visualization results
 │   ❌ Not included in repo (COCO-style dataset, add manually)
 ├── videos/                # Raw CCTV or simulated wildfire videos (MP4)  
 │   ❌ Not included in repo (CCTV/wildfire videos, add manually)
 ├── yolov8env310/          # Python virtual environment (optional)
+├── check_images.py        # Segmentation visualization tool
 ├── process_and_detect.py  # Converts COCO to YOLO format (with letterbox resize)
+├── relocate_sample_dir.py # Sample directory management tool
 ├── run_pipeline.py        # 10s video segmentation → YOLO → Gemini → Alert
 ├── yolo_custom.yaml       # Dataset config file for YOLOv8 training
 └── yolov8n.pt             # Pretrained YOLOv8 base model (for transfer learning)
@@ -28,7 +36,16 @@ RtoG/
 
 ---
 
-## 1. Preprocess COCO Dataset to YOLO Format
+## 1. Dataset Processing
+### 1.1 Relocate Sample Dataset
+```bash
+python relocate_sample_dir.py
+```
+- Organizes original dataset in structured directories
+- Copies source images to `Sample/data/images`
+- Copies label JSONs to `Sample/data/labels`
+
+### 1.2 Preprocess COCO Dataset to YOLO Format
 ```bash
 python process_and_detect.py
 ```
@@ -36,6 +53,14 @@ python process_and_detect.py
 - Matches JSON labels to original JPGs
 - Resizes images to 640x640 (letterbox style)
 - Converts bounding boxes to YOLO `.txt` format
+
+### 1.3 Segmentation Visualization
+```bash
+python check_images.py
+```
+- Visualizes YOLO-format segmentation labels
+- Creates overlay with class colors and labels
+- Saves visualization results to `Sample/result`
 
 ---
 
@@ -87,10 +112,10 @@ python run_pipeline.py
 
 ## 📦 Requirements
 - Python 3.10+
-- `ultralytics`, `opencv-python`, `tqdm`, `numpy`.
+- `ultralytics`, `opencv-python`, `tqdm`, `numpy`, `pillow`
 
 ```bash
-pip install ultralytics opencv-python tqdm numpy
+pip install ultralytics opencv-python tqdm numpy pillow
 ```
 
 ---
