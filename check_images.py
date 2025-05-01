@@ -12,8 +12,8 @@ import random
 from PIL import Image, ImageDraw, ImageFont
 
 # 경로 설정
-PROCESSED_IMAGES_DIR = "Sample/processed/images"
-PROCESSED_LABELS_DIR = "Sample/processed/labels"
+PROCESSED_IMAGES_DIR = "/Volumes/T7/result/val/images"
+PROCESSED_LABELS_DIR = "/Volumes/T7/result/val/labels"
 
 # 클래스 이름 정의 (YAML 파일과 동일하게 설정)
 CLASS_NAMES = {
@@ -180,7 +180,7 @@ def main():
     print(f"총 {len(image_files)}개의 이미지를 찾았습니다.")
     
     # 결과 저장 디렉토리
-    output_dir = "Sample/result"
+    output_dir = "/Volumes/T7/result/check"
     os.makedirs(output_dir, exist_ok=True)
     
     for image_path in image_files:
