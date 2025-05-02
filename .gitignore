@@ -30,3 +30,6 @@ runs/
 .dockerignore
 **/*.tar
 **/*.gz
+
+# Environment
+*.env
