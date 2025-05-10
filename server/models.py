@@ -1,49 +1,51 @@
 # server/models.py
-# 이 파일은 SQLAlchemy 모델을 정의하여 데이터베이스의 테이블 구조를 나타냅니다.
-# database.py에서 정의된 Base 클래스를 상속받아 각 테이블(엔티티)에 대한 클래스를 생성합니다.
-# 주요 모델:
-# - Video: 업로드된 비디오의 메타데이터 (ID, 파일명, 저장 위치, 상태 등)를 저장합니다.
-# - FireEvent: 감지된 화재 이벤트 정보 (ID, 비디오 ID, 타임스탬프, 분석 결과 등)를 저장합니다.
-# - SuspectEvent: 감지된 용의자/특이사항 이벤트 정보 (ID, 비디오 ID, 타임스탬프 등)를 저장합니다.
-# 모델 간의 관계(relationship)도 정의하여 ORM 기능을 활용할 수 있도록 합니다.
+# SQLAlchemy를 사용한 데이터베이스 모델 정의
+# - Video: 비디오 정보
+# - FireEvent: 화재 감지 이벤트
+# - SuspectEvent: 용의자/특이사항 이벤트
 
-from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
-from database import Base
 from datetime import datetime
+
+from database import Base
 
 class Video(Base):
     __tablename__ = "videos"
 
     id = Column(String, primary_key=True, index=True)
-    filename = Column(String, unique=True, index=True)
+    filename = Column(String)
     location = Column(String)
-    cctv_name = Column(String)
-    installation_date = Column(String)
-    resolution = Column(String)
-    angle = Column(String)
-    status = Column(String)
-    description = Column(String)
-    created_at = Column(DateTime)
+    status = Column(String, default="Uploaded")
+    description = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    cctv_name = Column(String, nullable=True)
+    installation_date = Column(String, nullable=True)
+    resolution = Column(String, nullable=True)
+    angle = Column(String, nullable=True)
 
     events = relationship("FireEvent", back_populates="video")
+    suspect_events = relationship("SuspectEvent", back_populates="video")
 
 class FireEvent(Base):
     __tablename__ = "fire_events"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, index=True)
     video_id = Column(String, ForeignKey("videos.id"))
-    timestamp = Column(DateTime, default=datetime.now)
+    timestamp = Column(DateTime, default=datetime.utcnow)
     event_type = Column(String)
-    confidence = Column(Float)
-    analysis = Column(String)
+    confidence = Column(Float, nullable=True)
+    analysis = Column(String, nullable=True)
 
     video = relationship("Video", back_populates="events")
 
 class SuspectEvent(Base):
     __tablename__ = "suspect_events"
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    video_id = Column(String)
-    timestamp = Column(DateTime)
+
+    id = Column(Integer, primary_key=True, index=True)
+    video_id = Column(String, ForeignKey("videos.id"))
+    timestamp = Column(DateTime, default=datetime.utcnow)
     confidence = Column(Float)
-    analysis = Column(String) 
+    analysis = Column(String)
+
+    video = relationship("Video", back_populates="suspect_events") 
