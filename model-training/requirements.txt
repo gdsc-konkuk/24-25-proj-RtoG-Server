@@ -1,7 +1,15 @@
-torch==2.1.0
-torchvision==0.16.0
-ultralytics==11.0.0
-opencv-python==4.8.1.78
-Pillow==10.1.0
-numpy>=1.19.0
-tqdm>=4.60.0 
+# 직접 import하는 기본 의존성
+ultralytics>=8.1.7
+# CPU 버전 대신 CUDA 지원 PyTorch 사용 (--index-url https://download.pytorch.org/whl/cu118)
+# 아래 패키지는 pip install 시 --index-url 옵션 사용 필요
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+pyyaml>=6.0
+
+# ultralytics 및 torch의 간접 의존성
+numpy>=1.23.0
+opencv-python>=4.7.0
+pillow>=9.0.0
+matplotlib>=3.7.0
+tqdm>=4.65.0 
