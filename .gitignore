@@ -33,3 +33,6 @@ runs/
 
 # Environment
 *.env
+
+server/database.db
+server/uploads/
