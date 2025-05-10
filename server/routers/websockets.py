@@ -21,28 +21,17 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import get_db
 from websocket_manager import connection_manager
 from models import Video
+from config import config
 
-# YOLO 모델 초기화
-model = YOLO('yolov8n.pt')
+model = YOLO(config.YOLO_MODEL_PATH)
 
+# websocket으로 들어온 이미지 처리하는 파이프라인
 async def process_frame(
     frame_data: Dict[str, Any],
     video_id: str,
     owner_id: str,
     websocket: WebSocket
 ) -> bool:
-    """
-    프레임 데이터를 처리하고 화재 감지 결과를 반환하는 함수
-    
-    Args:
-        frame_data (Dict[str, Any]): 클라이언트로부터 받은 프레임 데이터
-        video_id (str): 비디오 ID
-        owner_id (str): 소유자 ID
-        websocket (WebSocket): WebSocket 연결 객체
-    
-    Returns:
-        bool: 계속 처리를 진행해야 하는지 여부
-    """
     # 필수 필드 확인
     if not all(key in frame_data for key in ['stream_id', 'timestamp', 'frame_type', 'frame_data']):
         print("Missing required fields in received data")
@@ -82,16 +71,8 @@ async def process_frame(
     
     return True
 
+# base64 이미지 디코딩
 def decode_base64_image(base64_data: str) -> np.ndarray:
-    """
-    Base64 인코딩된 이미지를 디코딩하는 함수
-    
-    Args:
-        base64_data (str): Base64 인코딩된 이미지 데이터
-    
-    Returns:
-        np.ndarray: 디코딩된 이미지 배열, 실패 시 None
-    """
     try:
         img_bytes = base64.b64decode(base64_data)
         nparr = np.frombuffer(img_bytes, np.uint8)
@@ -104,16 +85,8 @@ def decode_base64_image(base64_data: str) -> np.ndarray:
         print(f"Error in decode_base64_image: {e}")
         return None
 
+# YOLO 모델을 사용하여 이미지에서 객체를 감지하는 함수
 def process_yolo_detection(img: np.ndarray) -> Tuple[List[Dict[str, Any]], bool]:
-    """
-    YOLO 모델을 사용하여 이미지에서 객체를 감지하는 함수
-    
-    Args:
-        img (np.ndarray): 처리할 이미지
-    
-    Returns:
-        Tuple[List[Dict[str, Any]], bool]: (감지된 객체 목록, 화재 감지 여부)
-    """
     results = model(img)
     detections = []
     fire_detected = False
@@ -135,24 +108,13 @@ def process_yolo_detection(img: np.ndarray) -> Tuple[List[Dict[str, Any]], bool]
     
     return detections, fire_detected
 
+# 화재 감지 알림을 전송하는 함수
 async def send_fire_alert(video_id: str, owner_id: str, timestamp: str):
-    """
-    화재 감지 알림을 전송하는 함수
-    
-    Args:
-        video_id (str): 비디오 ID
-        owner_id (str): 소유자 ID
-        timestamp (str): 감지 시간
-    """
-    alert_message = {
-        'event': 'fire_detected',
-        'data': {
-            'id': video_id,
-            'timestamp': timestamp
-        }
-    }
-    await connection_manager.broadcast_to_suspects(owner_id, alert_message)
+    pass
 
+
+
+# 라우터 정의
 router = APIRouter()
 
 @router.websocket("/ws/suspects")
