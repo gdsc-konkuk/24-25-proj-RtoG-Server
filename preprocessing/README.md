@@ -1,4 +1,37 @@
-# 이미지 전처리 도커 컨테이너
+# 데이터 전처리 모듈 (Preprocessing)
+
+이 모듈은 화재 감지를 위한 이미지 데이터 전처리 작업을 담당합니다.
+
+## 기능
+
+- 이미지 전처리 및 정규화
+- YOLO 형식 라벨 변환
+- 데이터셋 준비
+
+## 설치 및 실행
+
+1. 가상환경 활성화:
+```bash
+source venv/bin/activate  # Linux/Mac
+# 또는
+venv\Scripts\activate  # Windows
+```
+
+2. 의존성 설치:
+```bash
+pip install -r requirements.txt
+```
+
+3. 전처리 실행:
+```bash
+python image_preprocessing.py --input-dir /경로/입력/디렉토리 --output-dir /경로/출력/디렉토리
+```
+
+## 디렉토리 구조
+
+- `processed/`: 처리된 이미지와 라벨 파일이 저장되는 디렉토리
+
+## 도커 컨테이너
 
 이 도커 컨테이너는 YOLO 11 학습을 위한 이미지 전처리 작업을 수행합니다. 이미지와 COCO JSON 형식의 세그먼테이션 레이블을 입력받아 YOLO 호환 형식으로 변환합니다.
 

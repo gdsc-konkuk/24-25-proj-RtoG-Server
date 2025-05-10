@@ -7,90 +7,54 @@ From red (wildfire) to green (safe forest) — detect fast, act faster.
 
 ---
 
-## 📁 Project Structure
+## 🚀 Project Structure (Mono Repository)
+
+This project has been refactored into a monorepo with independent virtual environments:
 
 ```
 RtoG/
-├── preprocessing/         # Image preprocessing tools
-│   ├── Dockerfile        # Docker environment for preprocessing
-│   └── image_preprocessing.py # COCO to YOLO format converter
-├── processed/             # Resized images + YOLO-format labels
-├── runs/                  # Training results (✅ YOLOv8 output, only `best.pt` included)
-├── Sample/                # Original dataset  
-│   ├── 01.원천데이터/         # Images in nested folders (JPG)  
-│   ├── 02.라벨링데이터/        # COCO-style JSON labels  
-│   ├── data/              # Copied source data
-│   ├── processed/         # Processed images and labels
-│   └── result/            # Visualization results
-│   ❌ Not included in repo (COCO-style dataset, add manually)
-├── videos/                # Raw CCTV or simulated wildfire videos (MP4)  
-│   ❌ Not included in repo (CCTV/wildfire videos, add manually)
-├── yolov8env310/          # Python virtual environment (optional)
-├── check_images.py        # Segmentation visualization tool
-├── process_and_detect.py  # Converts COCO to YOLO format (with letterbox resize)
-├── relocate_sample_dir.py # Sample directory management tool
-├── run_pipeline.py        # 10s video segmentation → YOLO → Gemini → Alert
-├── yolo_custom.yaml       # Dataset config file for YOLOv8 training
-└── yolov8n.pt             # Pretrained YOLOv8 base model (for transfer learning)
+├── api-server/           # Web server (FastAPI)
+│   ├── venv/             # App server virtual environment
+│   └── requirements.txt  # App server dependencies
+│
+├── preprocessing/        # Image preprocessing tools
+│   ├── venv/             # Preprocessing virtual environment
+│   └── requirements.txt  # Preprocessing dependencies
+│
+├── model-training/       # Model training code
+│   ├── venv/             # Model training virtual environment
+│   └── requirements.txt  # Model training dependencies
+│
+├── Other project files...
 ```
 
----
+## 💻 Virtual Environment Setup
 
-## 1. Dataset Processing
-### 1.1 Relocate Sample Dataset
+Each project uses an independent virtual environment to prevent dependency conflicts:
+
+### api-server
 ```bash
-python relocate_sample_dir.py
+cd api-server
+python3 -m venv venv
+source venv/bin/activate  # Linux/Mac
+pip install -r requirements.txt
 ```
-- Organizes original dataset in structured directories
-- Copies source images to `Sample/data/images`
-- Copies label JSONs to `Sample/data/labels`
 
-### 1.2 Preprocess COCO Dataset to YOLO Format
+### preprocessing
 ```bash
-python process_and_detect.py
+cd preprocessing
+python3 -m venv venv
+source venv/bin/activate  # Linux/Mac
+pip install -r requirements.txt
 ```
-- Walks through nested folders
-- Matches JSON labels to original JPGs
-- Resizes images to 640x640 (letterbox style)
-- Converts bounding boxes to YOLO `.txt` format
 
-### 1.3 Segmentation Visualization
+### model-training
 ```bash
-python check_images.py
+cd model-training
+python3 -m venv venv
+source venv/bin/activate  # Linux/Mac
+pip install -r requirements.txt
 ```
-- Visualizes YOLO-format segmentation labels
-- Creates overlay with class colors and labels
-- Saves visualization results to `Sample/result`
-
----
-
-## 2. Train YOLOv8 Model
-```bash
-yolo detect train \
-    data=yolo_custom.yaml \
-    model=yolov8n.pt \
-    epochs=50 \
-    imgsz=640 \
-    batch=16 \
-    project=runs \
-    name=train
-```
-- Outputs to: `runs/train/weights/best.pt`
-- You can change `imgsz`, `epochs`, etc.
-
----
-
-## 3. Run Inference on Videos (10s segmentation)
-```bash
-python run_pipeline.py
-```
-- Segments videos into 10-second clips
-- Extracts thumbnail from each segment
-- Runs YOLO on thumbnail using trained `best.pt`
-- If suspicious → calls Gemini Vision API
-- If fire is confirmed → stores video block & thumbnail
-
----
 
 ## 🧠 Model Class Mapping
 | ID | Class Label       |
@@ -101,29 +65,3 @@ python run_pipeline.py
 | 3  | 구름 (Cloud)         |
 | 4  | 안개/연무 (Fog/Mist)    |
 | 5  | 굴뚝연기 (Chimney Smoke) |
-
----
-
-## 🔌 Gemini API Integration
-- Current: `call_gemini_api_mock()` (placeholder)
-- Replace with actual Gemini Vision API call logic for production
-
----
-
-## 📦 Requirements
-- Python 3.10+
-- `ultralytics`, `opencv-python`, `tqdm`, `numpy`, `pillow`
-
-```bash
-pip install ultralytics opencv-python tqdm numpy pillow
-```
-
----
-
-## 📍 Notes
-- Original image size is preserved during letterbox resize
-- `runs/` folder may grow large, clean periodically
-- Sample/ and videos/ are not included in the repository due to size constraints.   
-➤ Please add them manually to the root directory if you want to run the full pipeline.
-- Only best.pt from runs/ is included to keep the repo size reasonable.
-
