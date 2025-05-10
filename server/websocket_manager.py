@@ -32,7 +32,7 @@ class UnifiedConnectionManager:
         self.video_streams: Dict[str, StreamingService] = {}
         self.streaming_tasks: Dict[str, asyncio.Task] = {}
         self.streaming_clients: Dict[str, Set[WebSocket]] = {}
-        self.suspect_clients: Set[WebSocket] = set()
+        self.suspect_clients: Dict[str, Set[WebSocket]] = {}  # owner_id를 키로 사용
         self.analysis_tasks: Dict[str, asyncio.Task] = {}
         self.last_suspect_save_time: Dict[str, float] = {}
         self.last_alert_time: Dict[str, float] = {}
@@ -46,29 +46,33 @@ class UnifiedConnectionManager:
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
         
-        if websocket in self.suspect_clients:
-            self.suspect_clients.remove(websocket)
+        # 소유자의 suspect 구독 제거
+        for owner_clients in self.suspect_clients.values():
+            if websocket in owner_clients:
+                owner_clients.remove(websocket)
             
         # 스트리밍 클라이언트 목록에서도 제거
-        # disconnect 호출 시 어떤 video_id에 대한 구독 해제인지 알 수 없으므로, 모든 스트림에서 제거 시도
         for video_id in list(self.streaming_clients.keys()): 
             if websocket in self.streaming_clients.get(video_id, set()):
                 self.streaming_clients[video_id].remove(websocket)
                 if not self.streaming_clients[video_id]:
                     print(f"No more clients for video {video_id}. Consider stopping stream if auto-stop is implemented.")
-                    # del self.streaming_clients[video_id] # 필요시, 또는 stop_streaming_session에서 처리
         
         print(f"WebSocket disconnected: {websocket.client}. Total: {len(self.active_connections)}")
 
-    async def subscribe_to_suspects(self, websocket: WebSocket):
-        self.suspect_clients.add(websocket)
-        print(f"Suspects subscription added: {websocket.client}. Total subscribers: {len(self.suspect_clients)}")
+    async def subscribe_to_suspects(self, websocket: WebSocket, owner_id: str):
+        if owner_id not in self.suspect_clients:
+            self.suspect_clients[owner_id] = set()
+        self.suspect_clients[owner_id].add(websocket)
+        print(f"Suspects subscription added for owner {owner_id}: {websocket.client}")
 
-    async def unsubscribe_from_suspects(self, websocket: WebSocket):
-        self.suspect_clients.discard(websocket)
-        print(f"Suspects subscription removed: {websocket.client}. Total subscribers: {len(self.suspect_clients)}")
+    def unsubscribe_from_suspects(self, websocket: WebSocket):
+        for owner_id, clients in self.suspect_clients.items():
+            if websocket in clients:
+                clients.remove(websocket)
+                print(f"Suspects subscription removed for owner {owner_id}: {websocket.client}")
 
-    async def broadcast_suspect_event(self, video_id: str, timestamp: str, confidence: float, analysis: str, frame_base64: str):
+    async def broadcast_suspect_event(self, video_id: str, timestamp: str, confidence: float, analysis: str, frame_base64: str, owner_id: str):
         message = {
             "event": "fire_detected",
             "data": {
@@ -79,19 +83,23 @@ class UnifiedConnectionManager:
                 "frame": frame_base64
             }
         }
-        disconnected_clients = set()
-        for client in list(self.suspect_clients): # 순회 중 변경 대비 list로 복사
-            try:
-                await client.send_json(message)
-            except WebSocketDisconnect:
-                disconnected_clients.add(client)
-            except Exception as e:
-                print(f"Error broadcasting suspect event to {client.client}: {e}")
-                disconnected_clients.add(client)
         
-        for client in disconnected_clients:
-            self.disconnect(client)
-            print(f"Disconnected client {client.client} due to error during suspect broadcast.")
+        # 해당 소유자의 WebSocket 클라이언트들에게만 전송
+        if owner_id in self.suspect_clients:
+            disconnected_clients = set()
+            for client in list(self.suspect_clients[owner_id]):
+                try:
+                    await client.send_json(message)
+                except WebSocketDisconnect:
+                    disconnected_clients.add(client)
+                except Exception as e:
+                    print(f"Error broadcasting suspect event to {client.client}: {e}")
+                    disconnected_clients.add(client)
+            
+            for client in disconnected_clients:
+                self.unsubscribe_from_suspects(client)
+                self.disconnect(client)
+                print(f"Disconnected client {client.client} due to error during suspect broadcast.")
 
     async def start_streaming_session(self, video_id: str, video_path: str, db: Session):
         if video_id in self.video_streams and self.video_streams[video_id].is_running:
@@ -215,7 +223,8 @@ class UnifiedConnectionManager:
                                     timestamp=datetime.now().isoformat(),
                                     confidence=float(confidence),
                                     analysis=risk_level,
-                                    frame_base64=frame_base64_for_alert
+                                    frame_base64=frame_base64_for_alert,
+                                    owner_id=video_id
                                 )
                                 
                                 # DB에 이벤트 저장 (겹치지 않도록 시간 등으로 추가 조건 고려 가능)

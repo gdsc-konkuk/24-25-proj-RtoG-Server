@@ -3,7 +3,7 @@
 # - 용의자/특이사항 실시간 알림 (/ws/suspects)
 # - 비디오 실시간 스트리밍 (/ws/stream/{video_id})
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 import asyncio
 
@@ -18,9 +18,12 @@ from models import Video
 router = APIRouter()
 
 @router.websocket("/ws/suspects")
-async def suspects_endpoint(websocket: WebSocket):
+async def suspects_endpoint(
+    websocket: WebSocket,
+    owner_id: str = Query(..., description="CCTV 소유자 ID")
+):
     await connection_manager.connect(websocket)
-    await connection_manager.subscribe_to_suspects(websocket)
+    await connection_manager.subscribe_to_suspects(websocket, owner_id)
     try:
         while True:
             data = await websocket.receive_text() 
@@ -38,11 +41,13 @@ async def suspects_endpoint(websocket: WebSocket):
 async def video_stream_endpoint(
     websocket: WebSocket, 
     video_id: str, 
+    owner_id: str = Query(..., description="CCTV 소유자 ID"),
     db: Session = Depends(get_db)
 ):
     """
     CCTV 영상 스트리밍을 위한 WebSocket 엔드포인트
     :param video_id: Video 모델의 id (CCTV 식별자)
+    :param owner_id: CCTV 소유자 ID
     """
     await connection_manager.connect(websocket)
     
@@ -54,12 +59,18 @@ async def video_stream_endpoint(
         connection_manager.disconnect(websocket)
         return
 
+    # 소유자 확인
+    if video.owner_id != owner_id:
+        print(f"Unauthorized access attempt to video {video_id} by owner {owner_id}")
+        await websocket.close(code=4003, reason="Unauthorized access")
+        connection_manager.disconnect(websocket)
+        return
+
     print(f"Client {websocket.client} connecting to video stream: {video_id} ({video.cctv_name or 'unnamed'})")
     await connection_manager.subscribe_to_video_stream(websocket, video_id, db)
     
     try:
         while True:
-            # 클라이언트로부터의 메시지 수신 (필요한 경우 처리 로직 추가)
             data = await websocket.receive_text()
             await asyncio.sleep(0.01)
 

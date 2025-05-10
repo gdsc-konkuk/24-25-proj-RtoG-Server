@@ -93,7 +93,9 @@
 
 ### WebSocket API
 
--   `GET /ws/suspects`: 화재 및 특이사항 감지 실시간 알림 구독.
+-   `GET /ws/suspects?owner_id={owner_id}`: 화재 및 특이사항 감지 실시간 알림 구독.
+    -   Query Parameters:
+        - `owner_id`: (필수) CCTV 소유자 ID
     -   서버가 전송하는 메시지 예시:
         ```json
         {
@@ -107,7 +109,11 @@
           }
         }
         ```
--   `GET /ws/stream/{video_id}`: 특정 비디오(`video_id`)에 대한 실시간 스트리밍 구독.
+-   `GET /ws/stream/{video_id}?owner_id={owner_id}`: 특정 비디오(`video_id`)에 대한 실시간 스트리밍 구독.
+    -   Path Parameters:
+        - `video_id`: 스트리밍할 비디오 ID
+    -   Query Parameters:
+        - `owner_id`: (필수) CCTV 소유자 ID
     -   서버가 전송하는 메시지 예시:
         ```json
         {
@@ -140,7 +146,8 @@
 
 ### WebSocket 화재 감지 알림 구독
 ```javascript
-const suspectsWs = new WebSocket('ws://localhost:8000/ws/suspects');
+const owner_id = 'your_owner_id_here'; // 소유자 ID
+const suspectsWs = new WebSocket(`ws://localhost:8000/ws/suspects?owner_id=${owner_id}`);
 
 suspectsWs.onopen = () => {
   console.log('Connected to suspect alerts WebSocket.');
@@ -150,10 +157,7 @@ suspectsWs.onmessage = (event) => {
   try {
     const data = JSON.parse(event.data);
     console.log('화재/특이사항 감지:', data);
-    // 예시: data.event, data.data.id, data.data.analysis, data.data.frame 등 사용
     if (data.event === 'fire_detected' && data.data.frame) {
-      // const imageElement = document.getElementById('fireImage'); // 실제 이미지 태그 ID로 변경
-      // imageElement.src = 'data:image/jpeg;base64,' + data.data.frame;
       console.log('Frame received for video:', data.data.id);
     }
   } catch (error) {
@@ -161,8 +165,12 @@ suspectsWs.onmessage = (event) => {
   }
 };
 
-suspectsWs.onclose = () => {
-  console.log('Disconnected from suspect alerts WebSocket.');
+suspectsWs.onclose = (event) => {
+  if (event.code === 4003) {
+    console.log('Unauthorized access. Please check your owner ID.');
+  } else {
+    console.log('Disconnected from suspect alerts WebSocket.');
+  }
 };
 
 suspectsWs.onerror = (error) => {
@@ -173,20 +181,18 @@ suspectsWs.onerror = (error) => {
 ### WebSocket 비디오 스트림 구독
 ```javascript
 const videoId = 'your_video_id_here'; // 실제 비디오 ID로 대체
-const streamWs = new WebSocket(`ws://localhost:8000/ws/stream/${videoId}`);
+const owner_id = 'your_owner_id_here'; // 소유자 ID
+const streamWs = new WebSocket(`ws://localhost:8000/ws/stream/${videoId}?owner_id=${owner_id}`);
 
 streamWs.onopen = () => {
   console.log(`Connected to video stream for ${videoId}.`);
-  // 별도의 구독 메시지는 현재 서버 구현에서 필요하지 않음. URL 경로로 video_id 전달.
 };
 
 streamWs.onmessage = (event) => {
   try {
     const data = JSON.parse(event.data);
     if (data.type === 'video_frame' && data.id === videoId && data.frame) {
-      // const videoFrameElement = document.getElementById('videoFrame'); // 실제 이미지 태그 ID로 변경
-      // videoFrameElement.src = 'data:image/jpeg;base64,' + data.frame;
-      // console.log(`Frame received for video ${data.id}`);
+      console.log(`Frame received for video ${data.id}`);
     } else if (data.error) {
       console.error(`Server error for video stream ${videoId}:`, data.error);
       streamWs.close();
@@ -198,18 +204,17 @@ streamWs.onmessage = (event) => {
   }
 };
 
-streamWs.onclose = () => {
-  console.log(`Disconnected from video stream for ${videoId}.`);
+streamWs.onclose = (event) => {
+  if (event.code === 4003) {
+    console.log('Unauthorized access. Please check your owner ID.');
+  } else if (event.code === 4004) {
+    console.log('Video not found.');
+  } else {
+    console.log(`Disconnected from video stream for ${videoId}.`);
+  }
 };
 
 streamWs.onerror = (error) => {
   console.error(`Video stream WebSocket error for ${videoId}:`, error);
 };
 ```
-
-## 필요 조건
-
--   Python 3.13 이상
--   YOLO 모델 파일 (예: `training/yolo11n.pt`, 경로는 `.env` 또는 `config.py`에서 설정)
--   Google Gemini API 키 (환경 변수 `GEMINI_API_KEY`로 설정)
--   `server` 디렉토리 내에 `uploads` 디렉토리 생성 (또는 `config.py`의 `VIDEO_UPLOAD_DIR`에 지정된 경로) - 애플리케이션 시작 시 `VideoProcessingService`에서 자동 생성될 수 있음. 
