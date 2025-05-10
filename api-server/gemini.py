@@ -1,18 +1,26 @@
+# api-server/gemini.py
+# 이 파일은 Google Gemini API와의 연동 로직을 포함합니다.
+# config.py에서 Gemini API 키를 로드하여 API 클라이언트를 설정하고,
+# 이미지 경로를 입력받아 Gemini 멀티모달 모델을 사용하여 이미지 분석을 수행하는
+# use_gemini 함수를 제공합니다. 이 함수는 이미지 내 화재 위험도를 분석하여
+# '위험', '주의', '안전' 중 하나의 문자열로 결과를 반환합니다.
+
 import google.generativeai as genai
-from dotenv import load_dotenv
+# from dotenv import load_dotenv # 변경: BaseSettings가 처리
 import os
 import sys
 from PIL import Image
+from .config import settings # 변경: 설정 파일 import
 
-# .env 파일 로드
-load_dotenv()
+# .env 파일 로드 # 변경: BaseSettings가 처리
+# load_dotenv()
 
 # API 키 설정
-GOOGLE_API_KEY = os.getenv("GEMINI_API_KEY")
-if not GOOGLE_API_KEY:
-    raise ValueError("GEMINI_API_KEY가 .env 파일에 설정되지 않았습니다.")
+# GOOGLE_API_KEY = os.getenv("GEMINI_API_KEY") # 변경: 설정 파일에서 가져옴
+if not settings.GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY가 .env 파일에 설정되지 않았거나 config에 없습니다.")
 
-genai.configure(api_key=GOOGLE_API_KEY)
+genai.configure(api_key=settings.GEMINI_API_KEY)
 
 def use_gemini(image_path: str) -> str:
     """
@@ -54,4 +62,11 @@ def use_gemini(image_path: str) -> str:
         return "안전"  # 오류 발생 시 안전으로 처리
 
 if __name__ == "__main__":
-    use_gemini()
+    # 이 부분은 실제 API 호출 시에는 직접 실행되지 않으므로, 테스트 코드로 분리하거나 삭제 고려
+    # 여기서는 config에서 키를 잘 불러오는지 확인하는 용도로 남겨둘 수 있지만, 
+    # 실제 운영시는 삭제하거나 if 문으로 감싸는 것이 좋음
+    if settings.GEMINI_API_KEY:
+        print("Gemini API 키가 설정되었습니다. 테스트를 진행하려면 이미지를 제공해야 합니다.")
+        # 예: use_gemini("test_image.jpg")
+    else:
+        print("Gemini API 키가 설정되지 않아 테스트를 진행할 수 없습니다.")

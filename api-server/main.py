@@ -1,455 +1,114 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, BackgroundTasks
+# api-server/main.py
+# 이 파일은 FastAPI 애플리케이션의 메인 진입점(entrypoint)입니다.
+# FastAPI 앱 인스턴스를 생성하고, 전역 설정을 로드하며, 미들웨어(예: CORS)를 구성합니다.
+# 또한, 애플리케이션 시작(startup) 및 종료(shutdown) 시 수행할 작업을 정의하고,
+# routers 모듈에 정의된 HTTP 및 WebSocket 라우터들을 앱에 포함시켜 API 엔드포인트를 제공합니다.
+# 데이터베이스 초기화 로직 (개발용) 및 기본적인 상태 확인 엔드포인트도 포함되어 있습니다.
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List, Dict, Set, Optional
-import json
+from typing import List, Dict, Any
 import asyncio
-from datetime import datetime
-import os
-import cv2
-import numpy as np
-from pathlib import Path
-import sys
-import base64
-from ultralytics import YOLO
-import collections
-from glob import glob
 
-# Add gemini.py path to system path
-sys.path.append(str(Path(__file__).parent.parent))
-from gemini import use_gemini
+# 설정, DB, 모델, 스키마, 서비스, 라우터 등 import
+from .config import settings
+from .database import engine, Base, get_db
+from . import models, schemas
+from .services import video_processing_service, analysis_service
+from .routers import videos as video_router
+from .routers import websockets as websocket_router
+from .websockets import connection_manager
 
-# Change relative imports to absolute imports
-import models
-import schemas
-from database import engine, get_db, Base
-
-# Update the model path
-model_path = "training/yolo11n.pt"
-
-# Load YOLO model
-model = YOLO(model_path)
-model.conf = 0.1  # Set confidence threshold (10%)
-
-# Create database tables
+# 애플리케이션 시작 시 데이터베이스 테이블 생성
+# 실제 프로덕션에서는 Alembic과 같은 마이그레이션 도구 사용을 권장
+print("Dropping all tables for recreation (if any)... This should be handled by migrations in production.")
+Base.metadata.drop_all(bind=engine) # 개발 중에는 테이블을 매번 재생성 (데이터 유지 안됨)
 print("Creating database tables...")
-Base.metadata.drop_all(bind=engine)  # Drop existing tables
-Base.metadata.create_all(bind=engine)  # Create new tables
-print("Database tables created successfully")
+Base.metadata.create_all(bind=engine)
+print("Database tables created successfully.")
 
+# FastAPI 애플리케이션 인스턴스 생성
 app = FastAPI(
-    title="Fire Detection API",
+    title=settings.PROJECT_NAME,
+    version=settings.VERSION,
     description="""
-    API server for fire detection and video streaming.
+     통합된 RTOG API 서버.
     
-    ## Features
-    * Real-time video streaming
-    * Fire detection using YOLO
-    * Risk analysis using Gemini
-    * WebSocket support for real-time updates
+    ## 주요 기능
+    * 비디오 업로드 및 정보 관리 (HTTP)
+    * 비디오 실시간 스트리밍 (WebSocket)
+    * 화재 감지 (YOLO) 및 위험 분석 (Gemini) 후 알림 (WebSocket)
     
-    ## WebSocket Endpoints
-    * `/ws/suspects` - For fire detection notifications
-    * `/ws/stream` - For video streaming
-    
-    ## Authentication
-    Currently, the API does not require authentication.
+    ## API 엔드포인트
+    * HTTP API: `/api/v1/videos` (VideoRouter 참조)
+    * WebSocket API: `/ws/suspects`, `/ws/stream/{video_id}` (WebSocketRouter 참조)
     """,
-    version="1.0.0",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json",
-    swagger_ui_parameters={"defaultModelsExpandDepth": -1}
+    openapi_url=settings.OPENAPI_URL,
+    docs_url=settings.DOCS_URL,
+    redoc_url=settings.REDOC_URL,
+    swagger_ui_parameters={"defaultModelsExpandDepth": -1} # 스키마 모델 기본적으로 닫기
 )
 
-# CORS settings for API
+# CORS 미들웨어 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["*"],
+    allow_methods=["*"], # 모든 HTTP 메소드 허용
+    allow_headers=["*"] # 모든 HTTP 헤더 허용
 )
 
-class VideoStream:
-    def __init__(self, video_id: str, video_path: str):
-        self.video_id = video_id
-        self.video_path = video_path
-        self.cap = cv2.VideoCapture(video_path)
-        self.frame_count = 0
-        self.is_running = True
-        self.fps = 5  # 5FPS standard
-        self.buffer_size = self.fps * 5  # 5 seconds of frames
-        self.frame_buffer = collections.deque(maxlen=self.buffer_size)
-        print(f"Video stream initialized: {video_id}, path: {video_path}")
+# HTTP 라우터 포함
+app.include_router(video_router.router, prefix=settings.API_V1_STR + "/videos", tags=["Videos"])
 
-    async def get_frame(self) -> tuple[bool, str]:
-        if not self.is_running:
-            return False, ''
-        
-        success, frame = self.cap.read()
-        if not success:
-            print(f"Failed to read video frame: {self.video_id}")
-            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            success, frame = self.cap.read()
-            if not success:
-                print(f"Failed to restart video: {self.video_id}")
-                self.is_running = False
-                return False, ''
-        
-        frame = cv2.resize(frame, (640, 480))
-        self.frame_buffer.append(frame.copy())
-        
-        ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
-        if not ret:
-            print(f"Frame encoding failed: {self.video_id}")
-            return False, ''
-        
-        frame_base64 = base64.b64encode(buffer).decode('utf-8')
-        return True, frame_base64
+# WebSocket 라우터 포함 (prefix 없이 루트에서 직접 접근)
+app.include_router(websocket_router.router, tags=["WebSockets"])
 
-    def get_buffer_frames(self):
-        """Return recent 5 seconds of frames"""
-        return list(self.frame_buffer)
-
-    def release(self):
-        self.is_running = False
-        self.cap.release()
-        print(f"Video stream terminated: {self.video_id}")
-
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: List[WebSocket] = []
-        self.video_streams: Dict[str, VideoStream] = {}
-        self.streaming_tasks: Dict[str, asyncio.Task] = {}
-        self.streaming_clients: Dict[str, Set[WebSocket]] = {}
-        self.analysis_tasks: Dict[str, asyncio.Task] = {}
-        self.suspect_clients: Set[WebSocket] = set()
-        self.last_suspect_save_time: Dict[str, float] = {}
-        self.last_alert_time: Dict[str, float] = {}
-        self.last_gemini_time: Dict[str, float] = {}
-
-    async def connect(self, websocket: WebSocket):
-        try:
-            await websocket.accept()
-            self.active_connections.append(websocket)
-            print(f"WebSocket connected. Current connections: {len(self.active_connections)}")
-        except Exception as e:
-            print(f"WebSocket connection failed: {str(e)}")
-
-    def disconnect(self, websocket: WebSocket):
-        try:
-            if websocket in self.active_connections:
-                self.active_connections.remove(websocket)
-            if websocket in self.suspect_clients:
-                self.suspect_clients.remove(websocket)
-            for clients in self.streaming_clients.values():
-                if websocket in clients:
-                    clients.remove(websocket)
-            print(f"WebSocket disconnected. Current connections: {len(self.active_connections)}")
-        except Exception as e:
-            print(f"WebSocket disconnection failed: {str(e)}")
-
-    async def subscribe_to_suspects(self, websocket: WebSocket):
-        try:
-            self.suspect_clients.add(websocket)
-            print(f"Fire detection subscription added. Current subscribers: {len(self.suspect_clients)}")
-        except Exception as e:
-            print(f"Fire detection subscription failed: {str(e)}")
-
-    async def unsubscribe_from_suspects(self, websocket: WebSocket):
-        try:
-            self.suspect_clients.discard(websocket)
-            print(f"Fire detection subscription removed. Current subscribers: {len(self.suspect_clients)}")
-        except Exception as e:
-            print(f"Fire detection unsubscription failed: {str(e)}")
-
-    async def notify_suspects(self, video_id: str, timestamp: str, confidence: float, analysis: str, frame: str):
-        disconnected_clients = set()
-        for client in self.suspect_clients:
-            try:
-                await client.send_json({
-                    "event": "fire_detected",
-                    "data": {
-                        "id": video_id,
-                        "timestamp": timestamp,
-                        "confidence": confidence,
-                        "analysis": analysis,
-                        "frame": frame
-                    }
-                })
-            except Exception as e:
-                print(f"Notification failed: {str(e)}")
-                disconnected_clients.add(client)
-        
-        for client in disconnected_clients:
-            self.suspect_clients.discard(client)
-
-    async def start_streaming(self, video_id: str, video_path: str):
-        try:
-            if video_id in self.video_streams:
-                print(f"Stream already running: {video_id}")
-                return
-            
-            print(f"Starting new video stream: {video_id}")
-            stream = VideoStream(video_id, video_path)
-            self.video_streams[video_id] = stream
-            self.streaming_clients[video_id] = set()
-            
-            task = asyncio.create_task(self.stream_video(video_id))
-            self.streaming_tasks[video_id] = task
-            print(f"Streaming task created: {video_id}")
-            
-            analysis_task = asyncio.create_task(self.analyze_video(video_id, video_path))
-            self.analysis_tasks[video_id] = analysis_task
-            print(f"Analysis task created: {video_id}")
-        except Exception as e:
-            print(f"Error starting stream: {video_id}, error: {str(e)}")
-            if video_id in self.video_streams:
-                self.video_streams[video_id].release()
-                del self.video_streams[video_id]
-            raise
-
-    async def analyze_video(self, video_id: str, video_path: str):
-        cap = cv2.VideoCapture(video_path)
-        frame_count = 0
-        db = next(get_db())
-        
-        stream = self.video_streams.get(video_id)
-        
-        try:
-            while True:
-                success, frame = cap.read()
-                if not success:
-                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                    continue
-                
-                if frame_count % 25 == 0:  # Check every 5 seconds at 5FPS
-                    is_fire, confidence = detect_fire(frame)
-                    
-                    if is_fire and confidence >= 0.1:
-                        import time
-                        now = time.time()
-                        last_alert = self.last_alert_time.get(video_id, 0)
-                        
-                        if now - last_alert < 10:
-                            print(f"[{video_id}] 10-second cooldown: Skipping Gemini/alert")
-                        else:
-                            try:
-                                temp_frame_path = f"temp_frame_{video_id}.jpg"
-                                cv2.imwrite(temp_frame_path, frame)
-                                risk_level = use_gemini(temp_frame_path)
-                                os.remove(temp_frame_path)
-                                print(f"[{video_id}] Gemini analysis result: {risk_level}")
-                                
-                                if risk_level == '위험' or risk_level == '주의':
-                                    self.last_alert_time[video_id] = now
-                                    frame_base64 = base64.b64encode(cv2.imencode('.jpg', frame)[1]).decode('utf-8')
-                                    await self.notify_suspects(
-                                        video_id=video_id,
-                                        timestamp=datetime.now().isoformat(),
-                                        confidence=confidence,
-                                        analysis=risk_level,
-                                        frame=frame_base64
-                                    )
-                                    
-                                    last_save = self.last_suspect_save_time.get(video_id, 0)
-                                    if now - last_save >= 30:
-                                        self.last_suspect_save_time[video_id] = now
-                                        suspect_event = models.SuspectEvent(
-                                            video_id=video_id,
-                                            timestamp=datetime.now(),
-                                            confidence=confidence,
-                                            analysis=risk_level
-                                        )
-                                        db.add(suspect_event)
-                                        db.commit()
-                                        print(f"[{video_id}] Suspect event saved to database")
-                            except Exception as e:
-                                print(f"[{video_id}] Error in analysis: {str(e)}")
-                
-                frame_count += 1
-                await asyncio.sleep(0.2)  # 5FPS
-                
-        except Exception as e:
-            print(f"Error in video analysis: {video_id}, error: {str(e)}")
-        finally:
-            cap.release()
-
-    async def stream_video(self, video_id: str):
-        try:
-            stream = self.video_streams.get(video_id)
-            if not stream:
-                print(f"Stream not found: {video_id}")
-                return
-            
-            while stream.is_running:
-                success, frame_base64 = await stream.get_frame()
-                if not success:
-                    print(f"Failed to get frame: {video_id}")
-                    break
-                
-                disconnected_clients = set()
-                for client in self.streaming_clients.get(video_id, set()):
-                    try:
-                        await client.send_json({
-                            "event": "frame",
-                            "data": {
-                                "frame": frame_base64,
-                                "timestamp": datetime.now().isoformat()
-                            }
-                        })
-                    except Exception as e:
-                        print(f"Failed to send frame: {str(e)}")
-                        disconnected_clients.add(client)
-                
-                for client in disconnected_clients:
-                    self.streaming_clients[video_id].discard(client)
-                
-                await asyncio.sleep(0.2)  # 5FPS
-                
-        except Exception as e:
-            print(f"Error in video streaming: {video_id}, error: {str(e)}")
-        finally:
-            if video_id in self.video_streams:
-                self.video_streams[video_id].release()
-                del self.video_streams[video_id]
-
-    async def subscribe_to_video(self, websocket: WebSocket, video_id: str):
-        if video_id not in self.streaming_clients:
-            self.streaming_clients[video_id] = set()
-        self.streaming_clients[video_id].add(websocket)
-        print(f"Client subscribed to video: {video_id}")
-
-def detect_fire(frame: np.ndarray) -> tuple[bool, float]:
-    results = model(frame)
-    for result in results:
-        if len(result.boxes) > 0:
-            return True, float(result.boxes[0].conf)
-    return False, 0.0
-
-# API Endpoints
-@app.get(
-    "/api/videos",
-    response_model=List[schemas.Video],
-    summary="Get all videos",
-    description="Retrieve a list of all available videos in the system.",
-    tags=["Videos"]
-)
-async def get_videos(db: Session = Depends(get_db)):
-    """
-    Get all videos.
+@app.on_event("startup")
+async def startup_event():
+    # 애플리케이션 시작 시 필요한 작업 (예: 모델 로드, 디렉토리 생성 등)
+    # VideoProcessingService 생성자에서 YOLO 모델 로드 및 uploads 디렉토리 생성됨
+    # Gemini API는 gemini.py 로드 시 설정됨
+    print(f"Application startup complete. YOLO model loaded: {settings.YOLO_MODEL_PATH}")
+    print(f"Uploads directory: {settings.VIDEO_UPLOAD_DIR}")
+    if not settings.GEMINI_API_KEY:
+        print("Warning: GEMINI_API_KEY is not set in .env file or config. Gemini analysis will fail.")
+    else:
+        print("Gemini API key is configured.")
     
-    Returns:
-        List[Video]: A list of all videos in the system.
-    """
-    videos = db.query(models.Video).all()
-    return videos
+    # 테스트용/기본 비디오 DB에 추가 (선택 사항)
+    # db: Session = next(get_db()) # 임시 세션
+    # try:
+    #     # 여기에 기본 비디오 정보 추가 로직
+    #     # 예: test_video = db.query(models.Video).filter(models.Video.filename == "sample.mp4").first()
+    #     # if not test_video and os.path.exists(os.path.join(settings.VIDEO_UPLOAD_DIR, "sample.mp4")):
+    #     #     # ... models.Video 객체 만들고 db.add(), db.commit() ...
+    #     #     print("Added/verified sample video in DB.")
+    # finally:
+    #     db.close()
 
-@app.get(
-    "/api/suspects/{id}/events",
-    response_model=List[schemas.SuspectEvent],
-    summary="Get suspect events for a video",
-    description="Retrieve all suspect events (fire detections) for a specific video.",
-    tags=["Events"]
-)
-async def get_suspect_events(
-    id: str,
-    db: Session = Depends(get_db)
-):
-    """
-    Get suspect events for a specific video.
-    
-    Args:
-        id (str): The ID of the video to get events for.
-        
-    Returns:
-        List[SuspectEvent]: A list of suspect events for the specified video.
-    """
-    events = db.query(models.SuspectEvent).filter(models.SuspectEvent.video_id == id).all()
-    return events
-
-# WebSocket Endpoints
-@app.websocket("/ws/suspects")
-async def suspects_endpoint(websocket: WebSocket):
-    """
-    WebSocket endpoint for fire detection notifications.
-    
-    Messages:
-        - Send "unsubscribe" to stop receiving notifications
-        
-    Events:
-        - "fire_detected": When a fire is detected
-            {
-                "event": "fire_detected",
-                "data": {
-                    "id": "string",
-                    "timestamp": "string",
-                    "confidence": "float",
-                    "analysis": "string",
-                    "frame": "string" // base64 encoded image
-                }
-            }
-    """
-    await manager.connect(websocket)
+@app.on_event("shutdown")
+async def shutdown_event():
+    # 애플리케이션 종료 시 실행되어야 하는 정리 작업
+    print("Application shutting down...")
+    # 활성화된 모든 스트리밍 세션 정리
+    db_session_for_shutdown: Session = next(get_db()) # 새 세션
     try:
-        await manager.subscribe_to_suspects(websocket)
-        while True:
-            data = await websocket.receive_text()
-            if data == "unsubscribe":
-                await manager.unsubscribe_from_suspects(websocket)
-                break
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        active_video_ids = list(connection_manager.video_streams.keys())
+        if active_video_ids:
+            print(f"Stopping {len(active_video_ids)} active streaming session(s): {active_video_ids}")
+            for video_id in active_video_ids:
+                await connection_manager.stop_streaming_session(video_id, db_session_for_shutdown)
+        else:
+            print("No active streaming sessions to stop.")
     except Exception as e:
-        print(f"Error in suspects WebSocket: {str(e)}")
-        manager.disconnect(websocket)
+        print(f"Error during shutdown stream cleanup: {e}")
+    finally:
+        db_session_for_shutdown.close()
+    print("Application shutdown complete.")
 
-@app.websocket("/ws/stream")
-async def stream_endpoint(websocket: WebSocket):
-    """
-    WebSocket endpoint for video streaming.
-    
-    Initial Message (Required):
-        {
-            "video_id": "string",
-            "video_path": "string"
-        }
-        
-    Stream Format:
-        {
-            "event": "frame",
-            "data": {
-                "frame": "string", // base64 encoded image
-                "timestamp": "string"
-            }
-        }
-        
-    Control:
-        - Send "unsubscribe" to stop receiving video stream
-    """
-    await manager.connect(websocket)
-    try:
-        data = await websocket.receive_json()
-        video_id = data.get("video_id")
-        video_path = data.get("video_path")
-        
-        if not video_id or not video_path:
-            await websocket.close(code=1008, reason="Missing video_id or video_path")
-            return
-        
-        await manager.start_streaming(video_id, video_path)
-        await manager.subscribe_to_video(websocket, video_id)
-        
-        while True:
-            data = await websocket.receive_text()
-            if data == "unsubscribe":
-                break
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
-    except Exception as e:
-        print(f"Error in stream WebSocket: {str(e)}")
-        manager.disconnect(websocket)
+@app.get("/", summary="Root endpoint for API health check")
+async def root():
+    return {"message": f"Welcome to {settings.PROJECT_NAME} v{settings.VERSION}"}
 
-# Initialize connection manager
-manager = ConnectionManager() 
+# uvicorn main:app --reload 등으로 실행 
