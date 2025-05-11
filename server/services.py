@@ -267,3 +267,20 @@ class StreamingService:
 video_processing_service = VideoProcessingService()
 analysis_service = AnalysisService()
 # StreamingService는 video_id, video_path 마다 인스턴스화 필요 
+
+class LiveService:
+    @staticmethod
+    def get_lives(db) -> list[dict]:
+        """
+        비디오 목록을 반환 (이름, 설치 위치(location), id만 포함)
+        프론트엔드에서 Live 탭 진입 시 호출
+        """
+        videos = db.query(Video).all()
+        result = []
+        for v in videos:
+            result.append({
+                "name": getattr(v, "cctv_name", None) or v.filename,
+                "address": v.location or "",
+                "socketId": v.id
+            })
+        return result 
