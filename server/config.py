@@ -27,8 +27,11 @@ class Settings(BaseSettings):
     YOLO_CONFIDENCE_THRESHOLD: float = 0.5
     
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    SQLALCHEMY_DATABASE_URL: str = "sqlite:///./database.db"
     
     class Config:
         case_sensitive = True
+        env_file = ".env"
+        env_file_encoding = "utf-8"
 
 settings = Settings() 
