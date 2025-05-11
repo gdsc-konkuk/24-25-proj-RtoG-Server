@@ -112,6 +112,67 @@ class VideoProcessingService:
                          return True, confidence
         return False, 0.0
 
+    def validate_frame_data(self, frame_data: Dict[str, Any], video_id: str) -> None:
+        """프레임 데이터의 유효성을 검증"""
+        if not all(key in frame_data for key in ['stream_id', 'timestamp', 'frame_type', 'frame_data']):
+            raise ValueError("Missing required fields in received data")
+            
+        if frame_data['stream_id'] != video_id:
+            raise ValueError(f"Stream ID mismatch: expected {video_id}, got {frame_data['stream_id']}")
+            
+        if frame_data['frame_type'] != 'jpeg':
+            raise ValueError(f"Unsupported frame type: {frame_data['frame_type']}")
+
+    def decode_base64_image(self, base64_data: str) -> Optional[np.ndarray]:
+        """Base64 인코딩된 이미지를 디코딩"""
+        try:
+            img_bytes = base64.b64decode(base64_data)
+            nparr = np.frombuffer(img_bytes, np.uint8)
+            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            
+            if img is None:
+                raise ValueError("Failed to decode image")
+            return img
+        except Exception as e:
+            print(f"Error in decode_base64_image: {e}")
+            return None
+
+    async def analyze_frame_for_fire(self, img: np.ndarray) -> Tuple[bool, float, Optional[str]]:
+        """프레임에서 화재를 감지하고 필요시 Gemini로 확인"""
+        # YOLO로 화재 감지
+        fire_detected, confidence = self.detect_fire_yolo(img)
+        
+        # YOLO에서 화재 의심되면 Gemini로 2차 확인
+        if fire_detected and confidence > 0.5:
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as temp_file:
+                try:
+                    cv2.imwrite(temp_file.name, img)
+                    gemini_result = await analysis_service.analyze_image_with_gemini(temp_file.name)
+                    
+                    fire_keywords = ['화재', '불', '연기', 'fire', 'smoke', 'burning']
+                    gemini_confirms_fire = any(keyword in gemini_result.lower() for keyword in fire_keywords)
+                    
+                    if gemini_confirms_fire:
+                        return True, confidence, gemini_result
+                finally:
+                    os.unlink(temp_file.name)
+        
+        return fire_detected, confidence, None
+
+    async def send_fire_alert(
+        self,
+        owner_id: str,
+        video_id: str,
+        timestamp: str,
+        yolo_confidence: float,
+        gemini_description: str
+    ) -> None:
+        """화재 감지 알림을 전송"""
+        # TODO: 실제 알림 전송 로직 구현
+        print(f"Fire alert for video {video_id}: {gemini_description} (conf: {yolo_confidence})")
+        pass
+
 class AnalysisService:
     """Gemini API 호출 등 분석 관련 서비스"""
     def __init__(self):
