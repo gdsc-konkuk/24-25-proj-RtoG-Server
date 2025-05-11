@@ -89,28 +89,33 @@ class VideoProcessingService:
         return coordinates
 
     def detect_fire_yolo(self, frame: np.ndarray) -> tuple[bool, float]:
-        """Detect fire in a frame using YOLO model. (기존 루트 main.py의 기능)"""
+        """Detect fire in a frame using YOLO model. (기존 루트 main.py의 기능)
+        
+        Returns:
+            tuple[bool, float]: (화재 감지 여부, 신뢰도)
+            화재로 간주되는 클래스:
+            - 0: 흑색연기
+            - 1: 백색/회색연기
+            - 2: 화염
+        """
         results = self.yolo_model(frame, verbose=False)  # verbose=False to suppress output
+        
+        max_confidence = 0.0
+        fire_detected = False
         
         for result in results:
             if result.boxes:
                 for box in result.boxes:
-                    # 클래스 ID 0이 화재라고 가정 (YOLO 모델 학습에 따라 다름)
-                    # 실제 클래스 이름과 ID를 확인해야 합니다.
-                    # 예를 들어, model.names 에서 클래스 목록 확인 가능
-                    # 여기서는 화재 클래스가 'fire'이고 ID가 특정 값이라고 가정합니다.
-                    # class_id = int(box.cls)
-                    # if self.yolo_model.names[class_id].lower() == "fire": 
-                    #   confidence = float(box.conf)
-                    #   return True, confidence
-                    
-                    # 임시로, 어떤 객체든 감지되면 화재로 간주 (실제로는 클래스 필터링 필요)
+                    class_id = int(box.cls[0])
                     confidence = float(box.conf)
-                    # print(f"Detected object with confidence: {confidence}") # 디버깅용
-                    # 실제 화재 클래스 ID로 필터링 해야함. 예시로 첫번째 클래스가 화재라고 가정.
-                    if int(box.cls[0]) == 0: # 이 부분은 모델에 따라 수정 필요
-                         return True, confidence
-        return False, 0.0
+                    
+                    # 클래스 ID 0(흑색연기), 1(백색/회색연기), 2(화염)를 화재로 간주
+                    if class_id in [0, 1, 2]:
+                        if confidence > max_confidence:
+                            max_confidence = confidence
+                            fire_detected = True
+        
+        return fire_detected, max_confidence
 
     def validate_frame_data(self, frame_data: Dict[str, Any], video_id: str) -> None:
         """프레임 데이터의 유효성을 검증"""
