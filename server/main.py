@@ -9,8 +9,9 @@ from sqlalchemy.orm import Session
 
 from config import settings
 from database import engine, Base, get_db
-from routers import videos as video_router
+from routers import records as record_router
 from routers import websockets as websocket_router
+from routers import lives as live_router
 from websocket_manager import connection_manager
 
 # 개발용: 데이터베이스 테이블 재생성
@@ -24,12 +25,12 @@ app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     description="""
-    통합된 RTOG API 서버.
+    RTOG 화재 감지 서버 API.
     
     ## 주요 기능
-    * 비디오 업로드 및 정보 관리 (HTTP)
-    * 비디오 실시간 스트리밍 (WebSocket)
-    * 화재 감지 (YOLO) 및 위험 분석 (Gemini) 후 알림 (WebSocket)
+    * 실시간 CCTV 스트리밍 및 화재 감지 (Live)
+    * 화재 이벤트 기록 조회 (Records)
+    * WebSocket을 통한 실시간 스트리밍 및 알림
     """,
     openapi_url=settings.OPENAPI_URL,
     docs_url=settings.DOCS_URL,
@@ -47,7 +48,8 @@ app.add_middleware(
 )
 
 # 라우터 등록
-app.include_router(video_router.router, prefix=settings.API_V1_STR + "/videos", tags=["Videos"])
+app.include_router(live_router.router, prefix=settings.API_V1_STR + "/lives", tags=["Live"])
+app.include_router(record_router.router, prefix=settings.API_V1_STR + "/records", tags=["Records"])
 app.include_router(websocket_router.router, tags=["WebSockets"])
 
 @app.on_event("startup")

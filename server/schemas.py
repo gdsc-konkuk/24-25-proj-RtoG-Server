@@ -36,4 +36,47 @@ class SuspectEvent(BaseModel):
     confidence: float
     analysis: str
 
-    model_config = ConfigDict(from_attributes=True) 
+    model_config = ConfigDict(from_attributes=True)
+
+class LiveCCTV(BaseModel):
+    """실시간 CCTV 정보"""
+    id: str
+    name: str
+    location: str
+    socket_id: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+class LiveResponse(BaseModel):
+    """실시간 CCTV 목록 응답"""
+    cctvs: list[LiveCCTV]
+
+class EventDetail(BaseModel):
+    """화재 이벤트 상세 정보"""
+    eventId: str
+    cctv_name: str
+    location: str
+    timestamp: datetime
+    video_url: str
+    description: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+class EventSummary(BaseModel):
+    """화재 이벤트 요약 정보 (썸네일 포함)"""
+    eventId: str
+    cctv_name: str
+    location: str
+    thumbnail_url: str
+    timestamp: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+class DailyEvents(BaseModel):
+    """일자별 화재 이벤트 그룹"""
+    date: str
+    events: list[EventSummary]
+
+class RecordsResponse(BaseModel):
+    """화재 이벤트 기록 목록 응답"""
+    records: list[DailyEvents] 
