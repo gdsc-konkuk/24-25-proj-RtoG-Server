@@ -17,7 +17,7 @@ import asyncio
 import collections
 import base64
 from ultralytics import YOLO
-from datetime import datetime
+from datetime import datetime, timedelta
 import time # 추가
 
 from config import settings # 설정 import
@@ -269,57 +269,138 @@ analysis_service = AnalysisService()
 # StreamingService는 video_id, video_path 마다 인스턴스화 필요 
 
 class LiveService:
+    """실시간 CCTV 스트리밍 관련 서비스"""
+    
     @staticmethod
     def get_lives(db) -> list[dict]:
         """
-        비디오 목록을 반환 (이름, 설치 위치(location), id만 포함)
-        프론트엔드에서 Live 탭 진입 시 호출
+        실시간 스트리밍 가능한 CCTV 목록을 반환합니다.
+        
+        Args:
+            db: 데이터베이스 세션
+            
+        Returns:
+            list[dict]: CCTV 목록 (id, name, location, socket_id 포함)
         """
         videos = db.query(Video).all()
-        result = []
-        for v in videos:
-            result.append({
-                "name": getattr(v, "cctv_name", None) or v.filename,
-                "address": v.location or "",
-                "socketId": v.id
-            })
-        return result 
+        return [
+            {
+                "id": f"cctv_{v.id:03d}",
+                "name": v.cctv_name or v.filename,
+                "location": v.location or "",
+                "socket_id": f"ws_{v.id:03d}"
+            }
+            for v in videos
+        ]
 
 class RecordService:
+    """화재 이벤트 기록 관련 서비스"""
+    
     @staticmethod
     def get_records(db, start=None, end=None):
-        query = db.query(FireEvent)
-        if start:
-            query = query.filter(FireEvent.timestamp >= start)
-        if end:
-            query = query.filter(FireEvent.timestamp <= end)
-        events = query.all()
-        grouped = {}
-        for event in events:
-            date_str = event.timestamp.strftime("%Y-%m-%d")
-            if date_str not in grouped:
-                grouped[date_str] = []
-            grouped[date_str].append({
-                "eventId": event.id,
-                "cctv_name": event.video.cctv_name,
-                "location": event.video.location,
-                "thumbnail_url": f"/static/suspects/{event.id}.jpg",
-                "video_url": f"/static/suspects/{event.id}.mp4",
-                "timestamp": event.timestamp.isoformat()
-            })
-        result = [{"date": date, "events": evts} for date, evts in sorted(grouped.items(), reverse=True)]
-        return result
+        """
+        일자별로 그룹화된 화재 이벤트 목록을 반환합니다.
+        
+        Args:
+            db: 데이터베이스 세션
+            start: 조회 시작 날짜 (YYYY-MM-DD)
+            end: 조회 종료 날짜 (YYYY-MM-DD)
+            
+        Returns:
+            list[dict]: 일자별로 그룹화된 이벤트 목록
+            [
+                {
+                    "date": "2024-03-15",
+                    "events": [
+                        {
+                            "eventId": "evt_001",
+                            "cctv_name": "강릉시청 앞 CCTV-1",
+                            "location": "강원도 강릉시",
+                            "thumbnail_url": "/static/events/evt_001.jpg",
+                            "timestamp": "2024-03-15T14:23:00"
+                        }
+                    ]
+                }
+            ]
+        """
+        try:
+            query = db.query(FireEvent).join(Video)
+            
+            if start:
+                start_date = datetime.strptime(start, "%Y-%m-%d")
+                query = query.filter(FireEvent.timestamp >= start_date)
+            if end:
+                end_date = datetime.strptime(end, "%Y-%m-%d")
+                query = query.filter(FireEvent.timestamp < end_date + timedelta(days=1))
+                
+            events = query.order_by(FireEvent.timestamp.desc()).all()
+            
+            # 일자별로 그룹화
+            daily_events = {}
+            for event in events:
+                date_str = event.timestamp.strftime("%Y-%m-%d")
+                if date_str not in daily_events:
+                    daily_events[date_str] = []
+                    
+                daily_events[date_str].append({
+                    "eventId": f"evt_{event.id:03d}",
+                    "cctv_name": event.video.cctv_name or event.video.filename,
+                    "location": event.video.location or "",
+                    "thumbnail_url": f"/static/events/evt_{event.id:03d}.jpg",
+                    "timestamp": event.timestamp.isoformat()
+                })
+                
+            # 날짜순으로 정렬하여 반환
+            return [
+                {"date": date, "events": events}
+                for date, events in sorted(daily_events.items(), reverse=True)
+            ]
+        except ValueError as e:
+            raise ValueError(f"Invalid date format: {str(e)}")
+        except Exception as e:
+            raise Exception(f"Error fetching records: {str(e)}")
 
     @staticmethod
     def get_record_detail(db, event_id):
-        event = db.query(FireEvent).filter(FireEvent.id == event_id).first()
-        if not event:
-            return None
-        return {
-            "eventId": event.id,
-            "cctv_name": event.video.cctv_name,
-            "location": event.video.location,
-            "timestamp": event.timestamp.isoformat(),
-            "video_url": f"/static/suspects/{event.id}.mp4",
-            "description": event.analysis
-        } 
+        """
+        특정 화재 이벤트의 상세 정보를 반환합니다.
+        
+        Args:
+            db: 데이터베이스 세션
+            event_id: 이벤트 ID (evt_001 형식)
+            
+        Returns:
+            dict: 이벤트 상세 정보
+            {
+                "eventId": "evt_001",
+                "cctv_name": "강릉시청 앞 CCTV-1",
+                "location": "강원도 강릉시",
+                "timestamp": "2024-03-15T14:23:00",
+                "video_url": "/static/events/evt_001.mp4",
+                "description": "화재 감지 이벤트 상세 설명"
+            }
+            
+        Raises:
+            ValueError: 잘못된 이벤트 ID 형식
+            Exception: 데이터베이스 조회 오류
+        """
+        try:
+            # evt_001 -> 1
+            numeric_id = int(event_id.split('_')[1])
+            
+            event = db.query(FireEvent).join(Video).filter(FireEvent.id == numeric_id).first()
+            if not event:
+                return None
+                
+            return {
+                "eventId": f"evt_{event.id:03d}",
+                "cctv_name": event.video.cctv_name or event.video.filename,
+                "location": event.video.location or "",
+                "timestamp": event.timestamp.isoformat(),
+                "video_url": f"/static/events/evt_{event.id:03d}.mp4",
+                "description": event.analysis or ""
+            }
+        except (ValueError, IndexError) as e:
+            raise ValueError(f"Invalid event ID format: {str(e)}")
+        except Exception as e:
+            raise Exception(f"Error fetching record detail: {str(e)}") 
