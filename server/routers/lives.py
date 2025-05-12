@@ -8,9 +8,9 @@ import asyncio
 import numpy as np
 from fastapi.responses import StreamingResponse
 # yolo.py 에서 실제 함수 import
-from server.yolo import process_frame_with_yolo
+from yolo import process_frame_with_yolo
 # 설정값 import
-from server.config import settings
+from config import settings
 
 router = APIRouter()
 
@@ -68,7 +68,7 @@ async def frame_generator_with_yolo(video_path: str):
             print("Info: Video capture released.")
 
 
-@router.get("/stream_realtime/{video_name}")
+@router.get("/{video_name}")
 async def stream_video_realtime(video_name: str):
     """
     특정 영상을 실시간으로 읽어 YOLO 검증을 수행하고, 마킹된 프레임을 스트리밍합니다.
