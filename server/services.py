@@ -22,7 +22,7 @@ import time # 추가
 
 from config import settings # 설정 import
 from database import get_db, Base # 데이터베이스 관련 import (필요시)
-from models import Video # 모델 및 스키마 import (필요시)
+from models import Video, FireEvent # 모델 및 스키마 import (필요시)
 from gemini import use_gemini as call_gemini_api
 
 # YOLO 모델 로드 - AnalysisService 또는 VideoService 초기화 시로 이동 고려
@@ -284,3 +284,42 @@ class LiveService:
                 "socketId": v.id
             })
         return result 
+
+class RecordService:
+    @staticmethod
+    def get_records(db, start=None, end=None):
+        query = db.query(FireEvent)
+        if start:
+            query = query.filter(FireEvent.timestamp >= start)
+        if end:
+            query = query.filter(FireEvent.timestamp <= end)
+        events = query.all()
+        grouped = {}
+        for event in events:
+            date_str = event.timestamp.strftime("%Y-%m-%d")
+            if date_str not in grouped:
+                grouped[date_str] = []
+            grouped[date_str].append({
+                "eventId": event.id,
+                "cctv_name": event.video.cctv_name,
+                "location": event.video.location,
+                "thumbnail_url": f"/static/suspects/{event.id}.jpg",
+                "video_url": f"/static/suspects/{event.id}.mp4",
+                "timestamp": event.timestamp.isoformat()
+            })
+        result = [{"date": date, "events": evts} for date, evts in sorted(grouped.items(), reverse=True)]
+        return result
+
+    @staticmethod
+    def get_record_detail(db, event_id):
+        event = db.query(FireEvent).filter(FireEvent.id == event_id).first()
+        if not event:
+            return None
+        return {
+            "eventId": event.id,
+            "cctv_name": event.video.cctv_name,
+            "location": event.video.location,
+            "timestamp": event.timestamp.isoformat(),
+            "video_url": f"/static/suspects/{event.id}.mp4",
+            "description": event.analysis
+        } 
