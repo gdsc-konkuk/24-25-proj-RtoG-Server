@@ -45,7 +45,7 @@ async def get_records(
             {
               "eventId": "evt_001",
               "cctv_name": "강릉시청 앞 CCTV-1",
-              "location": "강원도 강릉시",
+              "address": "강원도 강릉시",
               "thumbnail_url": "/static/events/evt_001.jpg",
               "timestamp": "2024-03-15T14:23:00"
             }
@@ -57,7 +57,7 @@ async def get_records(
             {
               "eventId": "evt_002",
               "cctv_name": "강릉시청 앞 CCTV-2",
-              "location": "강원도 강릉시",
+              "address": "강원도 강릉시",
               "thumbnail_url": "/static/events/evt_002.jpg",
               "timestamp": "2024-03-14T15:30:00"
             }
@@ -85,7 +85,7 @@ async def get_record_detail(eventId: str, db: Session = Depends(get_db)):
     {
       "eventId": "evt_001",
       "cctv_name": "강릉시청 앞 CCTV-1",
-      "location": "강원도 강릉시",
+      "address": "강원도 강릉시",
       "timestamp": "2024-03-15T14:23:00",
       "video_url": "/static/events/evt_001.mp4",
       "description": "화재 감지 이벤트 상세 설명"
