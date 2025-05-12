@@ -6,13 +6,12 @@
 #   YOLO 모델을 사용한 프레임 내 화재 감지 등의 기능을 제공합니다.
 # - AnalysisService: 이미지 분석 관련 로직을 담당하며, 현재는 gemini.py의
 #   Gemini API 호출 함수를 사용하여 이미지 분석 기능을 제공합니다.
-# - StreamingService: 특정 비디오 파일에 대한 실시간 프레임 스트리밍을 관리합니다.
-#   비디오 캡처, 프레임 버퍼링, 프레임 인코딩 및 제공 기능을 포함합니다.
+# - StreamingService는 제거되었습니다.
 
 import os
 import cv2
 import numpy as np
-from typing import List, Tuple, Deque, Optional, Dict, Set, Any
+from typing import List, Tuple, Deque, Optional, Dict, Any
 import asyncio
 import collections
 import base64
@@ -24,6 +23,9 @@ from config import settings # 설정 import
 from database import get_db, Base # 데이터베이스 관련 import (필요시)
 from models import Video, FireEvent # 모델 및 스키마 import (필요시)
 from gemini import use_gemini as call_gemini_api
+
+# websocket_manager 임포트 추가
+from websocket_manager import connection_manager # send_fire_alert에서 사용
 
 # YOLO 모델 로드 - AnalysisService 또는 VideoService 초기화 시로 이동 고려
 # model_path = settings.YOLO_MODEL_PATH
@@ -171,12 +173,20 @@ class VideoProcessingService:
         video_id: str,
         timestamp: str,
         yolo_confidence: float,
-        gemini_description: str
+        gemini_description: Optional[str] = None
     ) -> None:
-        """화재 감지 알림을 전송"""
-        # TODO: 실제 알림 전송 로직 구현
-        print(f"Fire alert for video {video_id}: {gemini_description} (conf: {yolo_confidence})")
-        pass
+        """화재 감지 알림을 모든 연결된 클라이언트에게 전송"""
+        alert_message = {
+            "type": "fire_alert",
+            "data": {
+                "video_id": video_id,
+                "timestamp": timestamp,
+                "yolo_confidence": round(yolo_confidence, 2),
+                "description": gemini_description if gemini_description else "화재 의심 상황이 감지되었습니다.",
+            }
+        }
+        await connection_manager.broadcast_json(alert_message)
+        print(f"Fire alert sent for video {video_id}: {alert_message['data']}")
 
 class AnalysisService:
     """Gemini API 호출 등 분석 관련 서비스"""
@@ -185,102 +195,21 @@ class AnalysisService:
         pass
 
     async def analyze_image_with_gemini(self, image_path: str) -> str:
-        """Gemini API를 사용하여 이미지 분석 (비동기 Wrapper 예시)"""
-        # call_gemini_api는 동기 함수이므로, 실제 비동기 환경에서는 
-        # asyncio.to_thread 등을 사용하거나 gemini 라이브러리가 비동기를 지원하는지 확인 필요.
-        # 여기서는 간단히 호출하는 형태로 둠.
-        # loop = asyncio.get_event_loop()
-        # return await loop.run_in_executor(None, call_gemini_api, image_path)
+        """Gemini API를 사용하여 이미지 분석"""
         try:
             return call_gemini_api(image_path)
         except Exception as e:
             print(f"Gemini analysis error in service: {e}")
-            return "오류" # 또는 다른 기본값
-
-class StreamingService:
-    """기존 루트 main.py의 VideoStream 클래스와 스트리밍 관련 로직 담당"""
-    def __init__(self, video_id: str, video_path: str):
-        self.video_id = video_id
-        self.video_path = video_path
-        self.cap: Optional[cv2.VideoCapture] = None
-        self.is_running = False
-        self.fps = 5  # 기본 FPS
-        self.buffer_size = self.fps * 5  # 5초 버퍼
-        self.frame_buffer: Deque[np.ndarray] = collections.deque(maxlen=self.buffer_size)
-        self._open_capture()
-
-    def _open_capture(self):
-        if not os.path.exists(self.video_path):
-            print(f"Error: Video file not found at {self.video_path}")
-            self.is_running = False
-            return
-        self.cap = cv2.VideoCapture(self.video_path)
-        if not self.cap.isOpened():
-            print(f"Error: Could not open video stream for {self.video_id} at {self.video_path}")
-            self.is_running = False
-        else:
-            self.is_running = True
-            actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
-            if actual_fps > 0:
-                self.fps = actual_fps # 실제 FPS 사용 또는 고정 FPS 유지 선택
-            print(f"Video stream initialized: {self.video_id}, path: {self.video_path}, FPS: {self.fps}")
-
-    async def get_frame(self) -> tuple[bool, str]:
-        if not self.is_running or self.cap is None:
-            return False, ''
-        
-        ret, frame = self.cap.read()
-        if not ret:
-            # 비디오 끝에 도달하면 처음으로 되돌림 (루프 재생)
-            print(f"Video {self.video_id} reached end, restarting.")
-            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            ret, frame = self.cap.read()
-            if not ret:
-                print(f"Failed to restart video: {self.video_id}")
-                self.is_running = False
-                return False, ''
-        
-        # 프레임 리사이즈 (필요시)
-        frame_resized = cv2.resize(frame, (640, 480))
-        self.frame_buffer.append(frame_resized.copy())
-        
-        # JPEG 인코딩
-        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 80]
-        success, encoded_image = cv2.imencode('.jpg', frame_resized, encode_param)
-        if not success:
-            print(f"Frame encoding failed for {self.video_id}")
-            return False, ''
-        
-        frame_base64 = base64.b64encode(encoded_image).decode('utf-8')
-        return True, frame_base64
-
-    def get_buffered_frames(self) -> List[np.ndarray]:
-        return list(self.frame_buffer)
-
-    def release(self):
-        self.is_running = False
-        if self.cap is not None:
-            self.cap.release()
-        print(f"Video stream terminated: {self.video_id}")
-
-# 서비스 인스턴스 생성 (싱글톤처럼 사용하거나, Depends로 주입)
-video_processing_service = VideoProcessingService()
-analysis_service = AnalysisService()
-# StreamingService는 video_id, video_path 마다 인스턴스화 필요 
+            return "이미지 분석 중 오류가 발생했습니다."
 
 class LiveService:
-    """실시간 CCTV 스트리밍 관련 서비스"""
-    
+    """실시간 CCTV 스트리밍 가능 목록 제공 (웹소켓 연결 정보는 더 이상 유효하지 않을 수 있음)"""
+
     @staticmethod
     def get_lives(db) -> list[dict]:
         """
-        실시간 스트리밍 가능한 CCTV 목록을 반환합니다.
-        
-        Args:
-            db: 데이터베이스 세션
-            
-        Returns:
-            list[dict]: CCTV 목록 (id, name, address, socket_id 포함)
+        데이터베이스에서 비디오 목록을 가져와 반환합니다.
+        socket_id 필드는 더 이상 WebSocket 연결과 직접 관련되지 않을 수 있습니다.
         """
         videos = db.query(Video).all()
         return [
@@ -288,7 +217,7 @@ class LiveService:
                 "id": f"cctv_{v.id:03d}",
                 "name": v.cctv_name or v.filename,
                 "address": v.location or "",
-                "socket_id": f"ws_{v.id:03d}"
+                "video_id": v.id
             }
             for v in videos
         ]
@@ -327,11 +256,17 @@ class RecordService:
             query = db.query(FireEvent).join(Video)
             
             if start:
-                start_date = datetime.strptime(start, "%Y-%m-%d")
-                query = query.filter(FireEvent.timestamp >= start_date)
+                try:
+                    start_date = datetime.strptime(start, "%Y-%m-%d")
+                    query = query.filter(FireEvent.timestamp >= start_date)
+                except ValueError:
+                    raise ValueError("Invalid start date format. Use YYYY-MM-DD.")
             if end:
-                end_date = datetime.strptime(end, "%Y-%m-%d")
-                query = query.filter(FireEvent.timestamp < end_date + timedelta(days=1))
+                try:
+                    end_date = datetime.strptime(end, "%Y-%m-%d")
+                    query = query.filter(FireEvent.timestamp < end_date + timedelta(days=1))
+                except ValueError:
+                    raise ValueError("Invalid end date format. Use YYYY-MM-DD.")
                 
             events = query.order_by(FireEvent.timestamp.desc()).all()
             
@@ -342,23 +277,29 @@ class RecordService:
                 if date_str not in daily_events:
                     daily_events[date_str] = []
                     
+                # 썸네일/비디오 URL 생성 로직 개선 필요 (실제 파일 경로 기반)
+                # 예시: /static/event_media/{event.id}/thumbnail.jpg
+                #      /static/event_media/{event.id}/video.mp4
+                # 아래는 임시 형식
+                thumbnail_base_path = f"/static/events/evt_{event.id:03d}" # 예시 경로
+
                 daily_events[date_str].append({
                     "eventId": f"evt_{event.id:03d}",
                     "cctv_name": event.video.cctv_name or event.video.filename,
-                    "address": event.video.location or "",
-                    "thumbnail_url": f"/static/events/evt_{event.id:03d}.jpg",
-                    "timestamp": event.timestamp.isoformat()
+                    "address": event.video.location or "주소 정보 없음", # 기본값 제공
+                    "timestamp": event.timestamp.isoformat() # ISO 8601 형식
                 })
                 
             # 날짜순으로 정렬하여 반환
             return [
-                {"date": date, "events": events}
-                for date, events in sorted(daily_events.items(), reverse=True)
+                {"date": date, "events": event_list}
+                for date, event_list in sorted(daily_events.items(), reverse=True)
             ]
         except ValueError as e:
             raise ValueError(f"Invalid date format: {str(e)}")
         except Exception as e:
-            raise Exception(f"Error fetching records: {str(e)}")
+            print(f"Error fetching records: {e}")
+            raise Exception("Error fetching records")
 
     @staticmethod
     def get_record_detail(db, event_id):
@@ -385,22 +326,27 @@ class RecordService:
             Exception: 데이터베이스 조회 오류
         """
         try:
-            # evt_001 -> 1
-            numeric_id = int(event_id.split('_')[1])
-            
+            # event_id 형식 검증 (예: "evt_001")
+            if not event_id.startswith("evt_") or not event_id[4:].isdigit():
+                 raise ValueError("Invalid event ID format. Expected 'evt_XXX'.")
+            numeric_id = int(event_id[4:])
+
             event = db.query(FireEvent).join(Video).filter(FireEvent.id == numeric_id).first()
             if not event:
                 return None
                 
+            # 비디오 URL 생성 로직 개선 필요
+            # video_base_path = f"/static/events/evt_{event.id:03d}" # 예시 경로
+
             return {
                 "eventId": f"evt_{event.id:03d}",
                 "cctv_name": event.video.cctv_name or event.video.filename,
-                "address": event.video.location or "",
+                "address": event.video.location or "주소 정보 없음",
                 "timestamp": event.timestamp.isoformat(),
-                "video_url": f"/static/events/evt_{event.id:03d}.mp4",
-                "description": event.analysis or ""
+                "description": event.analysis or "상세 분석 정보 없음" # 기본값 제공
             }
-        except (ValueError, IndexError) as e:
-            raise ValueError(f"Invalid event ID format: {str(e)}")
+        except ValueError as e: # 형식 오류 처리
+            raise ValueError(str(e)) # 오류 메시지 그대로 전달
         except Exception as e:
-            raise Exception(f"Error fetching record detail: {str(e)}") 
+            print(f"Error fetching record detail for {event_id}: {e}")
+            raise Exception("Error fetching record detail") 
