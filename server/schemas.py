@@ -42,7 +42,7 @@ class LiveCCTV(BaseModel):
     """실시간 CCTV 정보"""
     id: str
     name: str
-    location: str
+    address: str
     socket_id: str
 
     model_config = ConfigDict(from_attributes=True)
@@ -55,7 +55,7 @@ class EventDetail(BaseModel):
     """화재 이벤트 상세 정보"""
     eventId: str
     cctv_name: str
-    location: str
+    address: str
     timestamp: datetime
     video_url: str
     description: Optional[str] = None
@@ -66,7 +66,7 @@ class EventSummary(BaseModel):
     """화재 이벤트 요약 정보 (썸네일 포함)"""
     eventId: str
     cctv_name: str
-    location: str
+    address: str
     thumbnail_url: str
     timestamp: datetime
 

@@ -280,14 +280,14 @@ class LiveService:
             db: 데이터베이스 세션
             
         Returns:
-            list[dict]: CCTV 목록 (id, name, location, socket_id 포함)
+            list[dict]: CCTV 목록 (id, name, address, socket_id 포함)
         """
         videos = db.query(Video).all()
         return [
             {
                 "id": f"cctv_{v.id:03d}",
                 "name": v.cctv_name or v.filename,
-                "location": v.location or "",
+                "address": v.location or "",
                 "socket_id": f"ws_{v.id:03d}"
             }
             for v in videos
@@ -315,7 +315,7 @@ class RecordService:
                         {
                             "eventId": "evt_001",
                             "cctv_name": "강릉시청 앞 CCTV-1",
-                            "location": "강원도 강릉시",
+                            "address": "강원도 강릉시",
                             "thumbnail_url": "/static/events/evt_001.jpg",
                             "timestamp": "2024-03-15T14:23:00"
                         }
@@ -345,7 +345,7 @@ class RecordService:
                 daily_events[date_str].append({
                     "eventId": f"evt_{event.id:03d}",
                     "cctv_name": event.video.cctv_name or event.video.filename,
-                    "location": event.video.location or "",
+                    "address": event.video.location or "",
                     "thumbnail_url": f"/static/events/evt_{event.id:03d}.jpg",
                     "timestamp": event.timestamp.isoformat()
                 })
@@ -374,7 +374,7 @@ class RecordService:
             {
                 "eventId": "evt_001",
                 "cctv_name": "강릉시청 앞 CCTV-1",
-                "location": "강원도 강릉시",
+                "address": "강원도 강릉시",
                 "timestamp": "2024-03-15T14:23:00",
                 "video_url": "/static/events/evt_001.mp4",
                 "description": "화재 감지 이벤트 상세 설명"
@@ -395,7 +395,7 @@ class RecordService:
             return {
                 "eventId": f"evt_{event.id:03d}",
                 "cctv_name": event.video.cctv_name or event.video.filename,
-                "location": event.video.location or "",
+                "address": event.video.location or "",
                 "timestamp": event.timestamp.isoformat(),
                 "video_url": f"/static/events/evt_{event.id:03d}.mp4",
                 "description": event.analysis or ""

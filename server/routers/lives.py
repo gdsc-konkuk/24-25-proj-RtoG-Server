@@ -13,7 +13,7 @@ async def lives_endpoint(db: Session = Depends(get_db)):
     
     특징:
     - Live 탭 진입 시 프론트엔드에서 호출
-    - 각 CCTV의 ID, 이름, 설치 위치, WebSocket ID를 포함
+    - 각 CCTV의 ID, 이름, 설치 위치(address), WebSocket ID를 포함
     
     반환 예시:
     ```json
@@ -22,13 +22,13 @@ async def lives_endpoint(db: Session = Depends(get_db)):
         {
           "id": "cctv_001",
           "name": "강릉시청 앞 CCTV-1",
-          "location": "강원도 강릉시",
+          "address": "강원도 강릉시",
           "socket_id": "ws_001"
         },
         {
           "id": "cctv_002",
           "name": "강릉시청 앞 CCTV-2",
-          "location": "강원도 강릉시",
+          "address": "강원도 강릉시",
           "socket_id": "ws_002"
         }
       ]
