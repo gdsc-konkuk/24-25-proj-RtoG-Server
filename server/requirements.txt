@@ -1,0 +1,22 @@
+# FastAPI 웹 서버 관련
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+python-multipart==0.0.20
+websockets==11.0.3
+
+# 데이터베이스
+sqlalchemy==2.0.40
+
+# 이미지 처리 및 AI 모델
+numpy<2.0.0
+opencv-python==4.8.1.78
+ultralytics==8.3.130
+
+# API 스키마
+pydantic==2.11.4
+pydantic-settings==2.9.1
+
+# Gemini AI 연동
+google-generativeai==0.8.5
+pillow==11.2.1
+python-dotenv==1.1.0

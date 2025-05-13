@@ -13,7 +13,7 @@ This project has been refactored into a monorepo with independent virtual enviro
 
 ```
 RtoG/
-├── api-server/           # Web server (FastAPI)
+├── server/           # Web server (FastAPI)
 │   ├── venv/             # App server virtual environment
 │   └── requirements.txt  # App server dependencies
 │
@@ -32,9 +32,9 @@ RtoG/
 
 Each project uses an independent virtual environment to prevent dependency conflicts:
 
-### api-server
+### server
 ```bash
-cd api-server
+cd server
 python3 -m venv venv
 source venv/bin/activate  # Linux/Mac
 pip install -r requirements.txt
