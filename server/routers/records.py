@@ -15,8 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from schemas import Video, FireEvent, RecordsResponse, EventDetail
 from models import Video as VideoModel, FireEvent as FireEventModel
-from services import video_processing_service, RecordService
-from config import settings
+from services import  RecordService
 from database import get_db
 
 router = APIRouter()
