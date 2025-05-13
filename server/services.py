@@ -38,6 +38,45 @@ class VideoProcessingService:
         return file_path
 
     @staticmethod
+    async def video_stream(video_path: str):
+        """
+        비디오 파일을 프레임 단위로 스트리밍합니다.
+        
+        Args:
+            video_path: 스트리밍할 비디오 파일 경로
+            
+        Yields:
+            MJPEG 형식의 비디오 프레임
+        """
+        try:
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                raise HTTPException(status_code=404, detail="영상을 열 수 없습니다.")
+
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # 영상을 처음으로 되돌림
+                    continue
+
+                # 프레임을 JPEG 형식으로 인코딩
+                ret, encoded_frame = cv2.imencode('.jpg', frame)
+                if not ret:
+                    continue
+
+                # 스트리밍 형식에 맞게 yield
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + encoded_frame.tobytes() + b'\r\n')
+                await asyncio.sleep(0.01)  # 스트리밍 간격 조절
+
+        except Exception as e:
+            print(f"Error streaming video: {e}")
+            raise HTTPException(status_code=500, detail="영상 스트리밍 중 오류가 발생했습니다.")
+        finally:
+            if 'cap' in locals():
+                cap.release()
+
+    @staticmethod
     async def frame_generator_with_yolo(video_path: str, cctv_id: str):
         """
         주어진 영상 파일 경로를 통해 프레임을 읽고, YOLO 검증 후 마킹된 프레임을 생성하여 yield 합니다.
@@ -146,11 +185,16 @@ class RecordService:
                 if date_str not in daily_events:
                     daily_events[date_str] = []
                     
+                # 썸네일 URL을 전체 URL로 변경
+                thumbnail_path = event.thumbnail_path or f"event_{event.timestamp.strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
+                thumbnail_url = f"http://localhost:8000/static/record/events/{thumbnail_path}"
+                    
                 daily_events[date_str].append({
                     "eventId": f"evt_{event.id:03d}",
                     "cctv_name": event.video.cctv_name or event.video.filename,
                     "address": event.video.location or "주소 정보 없음",
-                    "timestamp": event.timestamp.isoformat()
+                    "timestamp": event.timestamp.isoformat(),
+                    "thumbnail_url": thumbnail_url
                 })
                 
             # 날짜순으로 정렬하여 반환
@@ -159,10 +203,9 @@ class RecordService:
                 for date, event_list in sorted(daily_events.items(), reverse=True)
             ]
         except ValueError as e:
-            raise ValueError(f"Invalid date format: {str(e)}")
+            raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
-            print(f"Error fetching records: {e}")
-            raise Exception("Error fetching records")
+            raise HTTPException(status_code=500, detail=f"이벤트 조회 중 오류 발생: {str(e)}")
 
     @staticmethod
     def get_record_detail(db, event_id):
@@ -181,10 +224,10 @@ class RecordService:
                 "cctv_name": event.video.cctv_name or event.video.filename,
                 "address": event.video.location or "주소 정보 없음",
                 "timestamp": event.timestamp.isoformat(),
-                "description": event.analysis or "상세 분석 정보 없음"
+                "description": event.analysis or "상세 분석 정보 없음",
+                "thumbnail_url": event.thumbnail_path or f"/static/record/events/event_{event.timestamp.strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
             }
         except ValueError as e:
-            raise ValueError(str(e))
+            raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
-            print(f"Error fetching record detail for {event_id}: {e}")
-            raise Exception("Error fetching record detail") 
+            raise HTTPException(status_code=500, detail=f"이벤트 상세 정보 조회 중 오류 발생: {str(e)}") 

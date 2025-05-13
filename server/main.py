@@ -5,10 +5,11 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 from config import settings
-from database import engine, Base, get_db
+from database import engine, Base, get_db, initialize_database
 from routers import records as record_router
 from routers import websockets as websocket_router
 from routers import lives as live_router
@@ -38,6 +39,9 @@ app = FastAPI(
     swagger_ui_parameters={"defaultModelsExpandDepth": -1}
 )
 
+# 정적 파일 서빙 설정
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 # CORS 설정
 app.add_middleware(
     CORSMiddleware,
@@ -59,6 +63,9 @@ async def startup_event():
     Base.metadata.create_all(bind=engine)
     print("Database tables created successfully.")
     
+    # 데이터베이스 초기화 (메타데이터 로드)
+    initialize_database()
+
     print(f"Application startup complete. YOLO model loaded: {settings.YOLO_MODEL_PATH}")
     if not settings.GEMINI_API_KEY:
         print("Warning: GEMINI_API_KEY is not set in .env file or config.")
