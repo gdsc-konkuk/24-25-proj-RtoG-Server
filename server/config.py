@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     ALLOWED_VIDEO_TYPES: List[str] = ["video/mp4", "video/x-msvideo", "video/quicktime"]
     MAX_VIDEO_SIZE: int = 100 * 1024 * 1024  # 100MB
     
-    YOLO_MODEL_PATH: str = "training/yolo11n.pt"
+    YOLO_MODEL_PATH: str = "best.pt"
     YOLO_CONFIDENCE_THRESHOLD: float = 0.5
     
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
