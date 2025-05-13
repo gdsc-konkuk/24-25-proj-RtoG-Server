@@ -19,11 +19,8 @@ async def stream_video_realtime(video_id: str, db: Session = Depends(get_db)):
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     
-    # 비디오 파일 경로
-    video_path = f"{settings.VIDEO_STORAGE_PATH}/{video.id}.mp4"
-    print(f"Attempting to stream video from: {video_path}")
     return StreamingResponse(
-        VideoProcessingService.frame_generator_with_yolo(video_path, video_id), 
+        VideoProcessingService.frame_generator_with_yolo(video_id),
         media_type="multipart/x-mixed-replace; boundary=frame"
     )
 
