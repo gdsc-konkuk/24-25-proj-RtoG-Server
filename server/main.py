@@ -17,9 +17,9 @@ from websocket_manager import connection_manager
 # 개발용: 데이터베이스 테이블 재생성
 # print("Dropping all tables for recreation...")
 # Base.metadata.drop_all(bind=engine)
-print("Creating database tables...")
-Base.metadata.create_all(bind=engine)
-print("Database tables created successfully.")
+# print("Creating database tables...")
+# Base.metadata.create_all(bind=engine)
+# print("Database tables created successfully.")
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -54,6 +54,11 @@ app.include_router(websocket_router.router, tags=["WebSockets"])
 
 @app.on_event("startup")
 async def startup_event():
+    # 데이터베이스 테이블 생성
+    print("Creating database tables...")
+    Base.metadata.create_all(bind=engine)
+    print("Database tables created successfully.")
+    
     print(f"Application startup complete. YOLO model loaded: {settings.YOLO_MODEL_PATH}")
     if not settings.GEMINI_API_KEY:
         print("Warning: GEMINI_API_KEY is not set in .env file or config.")
