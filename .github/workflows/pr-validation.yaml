@@ -1,0 +1,36 @@
+name: Check Uvicorn App on PR
+
+on:
+  pull_request:
+    paths:
+      - 'server/**'
+
+jobs:
+  uvicorn-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        working-directory: ./server
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Check if Uvicorn runs
+        working-directory: ./server
+        run: |
+          source venv/bin/activate
+          # Run Uvicorn in background
+          uvicorn main:app --reload &
+          # Wait briefly to ensure the server starts
+          sleep 5
+          # Check if it is running
+          curl -f http://127.0.0.1:8000 || (echo "Uvicorn did not start properly" && exit 1)
