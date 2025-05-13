@@ -5,24 +5,42 @@ from ultralytics import YOLO
 from collections import deque
 import tempfile 
 import os 
+import time
 
 import gemini
 from websocket_manager import connection_manager, StatusMessage
+from config import settings
 
 # YOLO 모델 로드 (애플리케이션 시작 시 한 번 로드 권장)
 model = YOLO('./best.pt') 
 print("YOLO model loaded.")
 
-# 최근 3개 프레임의 화재 관련 객체 감지 여부 저장 (True: 감지됨, False: 감지 안됨)
-recent_detections = deque(maxlen=3)
+# 최근 5개 프레임의 화재 관련 객체 감지 여부 저장 (True: 감지됨, False: 감지 안됨)
+recent_detections = deque(maxlen=5)
+
+# 마지막 Gemini API 호출 시간 추적
+last_gemini_call_time = 0
+GEMINI_COOLDOWN = 30  # 30초 쿨다운
 
 # 화재 의심 신고 로직
-async def fire_alert(current_frame: np.ndarray):
+async def fire_alert(current_frame: np.ndarray, cctv_id: str):
     """
     화재 의심 상황 시 호출될 함수.
     Gemini API로 프레임 분석 후 웹소켓으로 알림.
+    
+    Args:
+        current_frame: 현재 프레임 이미지
+        cctv_id: CCTV 식별자
     """
-    print("화재 의심! 연속 3프레임에서 객체 감지됨. Gemini API로 검증 시작...")
+    global last_gemini_call_time
+    current_time = time.time()
+    
+    # 마지막 호출 후 30초가 지나지 않았다면 스킵
+    if current_time - last_gemini_call_time < GEMINI_COOLDOWN:
+        return
+
+    print(f"화재 의심! CCTV {cctv_id}에서 연속 5프레임에서 객체 감지됨. Gemini API로 검증 시작...")
+    last_gemini_call_time = current_time
 
     temp_image_path = ""
     try:
@@ -42,20 +60,27 @@ async def fire_alert(current_frame: np.ndarray):
         status = gemini_result.get("status", "normal") # 기본값 normal
         description = gemini_result.get("description", "Gemini 분석 결과 없음")
 
-        # 4. 상태가 'dangerous'일 경우 웹소켓으로 브로드캐스트
-        # 필요에 따라 'hazardous' 상태일 때도 브로드캐스트 하도록 조건을 수정할 수 있습니다.
-        if status == "dangerous":
+        # 4. 상태가 'dangerous' 또는 'hazardous'일 경우 웹소켓으로 브로드캐스트
+        if status in ["dangerous", "hazardous"]:
             print(f"Gemini API 결과: {status} 상태 감지됨.")
-            # StatusMessage 생성 시 description 길이 제한 고려 (필요시)
-            status_message = StatusMessage(status=status, description=description[:200]) # description 길이 제한 예시
+            status_message = StatusMessage(
+                status=status, 
+                description=description[:200],
+                cctvId=cctv_id
+            )
+            
+            # 알림 메시지 형식 출력
+            print("\n=== WebSocket 알림 메시지 ===")
+            print(f"상태: {status}")
+            print(f"CCTV ID: {cctv_id}")
+            print(f"설명: {description[:200]}")
+            print("===========================\n")
             
             # 웹소켓으로 브로드캐스트
             await connection_manager.broadcast_json(status_message)
-            print("웹소켓으로 화재 경보 브로드캐스트 완료.")
+            print(f"웹소켓으로 CCTV {cctv_id} 화재 경보 브로드캐스트 완료.")
         else:
             print(f"Gemini API 결과: {status} 상태. 브로드캐스트하지 않음.")
-            # 위험하지 않은 상태 ('normal', 'hazardous')일 때 처리할 내용 (예: 로그만 남기기)
-            pass
 
     except Exception as e:
         print(f"fire_alert 처리 중 오류 발생: {e}")
@@ -68,10 +93,14 @@ async def fire_alert(current_frame: np.ndarray):
             except Exception as e:
                 print(f"임시 이미지 삭제 중 오류: {e}")
 
-async def process_frame_with_yolo(frame: np.ndarray) -> np.ndarray:
+async def process_frame_with_yolo(frame: np.ndarray, cctv_id: str) -> np.ndarray:
     """
     주어진 NumPy 배열 형태의 프레임에 대해 YOLO 객체 검출을 수행하고,
-    객체가 마킹된 프레임을 반환합니다. 연속 3프레임 화재 감지 시 fire_alert 호출.
+    객체가 마킹된 프레임을 반환합니다. 연속 5프레임 화재 감지 시 fire_alert 호출.
+    
+    Args:
+        frame: 처리할 프레임 이미지
+        cctv_id: CCTV 식별자
     """
     results = model.predict(frame, verbose=False)
     current_frame_detected = False
@@ -101,10 +130,8 @@ async def process_frame_with_yolo(frame: np.ndarray) -> np.ndarray:
 
     recent_detections.append(current_frame_detected)
 
-    if len(recent_detections) == 3 and all(recent_detections):
-        # fire_alert를 호출할 때 현재 프레임(마킹된 프레임 또는 원본 프레임)을 전달합니다.
-        # 원본 프레임을 보내는 것이 분석에 더 적합할 수 있습니다.
-        await fire_alert(frame) # 원본 프레임(frame)을 전달
+    if len(recent_detections) == 5 and all(recent_detections):
+        await fire_alert(frame, cctv_id)
 
     await asyncio.sleep(0.001)
     return marked_frame

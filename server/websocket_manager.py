@@ -14,6 +14,7 @@ from pydantic import BaseModel
 class StatusMessage(BaseModel):
     status: Literal["dangerous", "normal", "hazardous"]
     description: str
+    cctvId: str  # CCTV 식별자 추가
 
 class UnifiedConnectionManager:
     def __init__(self):
@@ -36,7 +37,13 @@ class UnifiedConnectionManager:
         """Sends a StatusMessage JSON message to all connected clients."""
         disconnected_clients = []
         message_dict = message.model_dump()
-        print(f"Broadcasting message to {len(self.active_connections)} clients: {message_dict}")
+        print("\n=== WebSocket 알림 메시지 ===")
+        print(f"상태: {message_dict['status']}")
+        print(f"CCTV ID: {message_dict['cctvId']}")
+        print(f"설명: {message_dict['description']}")
+        print(f"연결된 클라이언트 수: {len(self.active_connections)}")
+        print("===========================\n")
+        
         connections_to_broadcast = list(self.active_connections)
         for connection in connections_to_broadcast:
             try:
