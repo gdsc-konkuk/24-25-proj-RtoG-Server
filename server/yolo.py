@@ -36,27 +36,27 @@ async def fire_alert(current_frame: np.ndarray):
 
         # 2. Gemini API 호출 (동기 함수이므로 asyncio.to_thread 사용)
         # gemini.use_gemini가 동기 함수라고 가정합니다. 만약 비동기 함수라면 await gemini.use_gemini(...)
-        gemini_response = await asyncio.to_thread(gemini.use_gemini, temp_image_path)
-        print(f"Gemini API 응답: {gemini_response}")
+        gemini_result = await asyncio.to_thread(gemini.use_gemini, temp_image_path)
+        print(f"Gemini API 결과: {gemini_result}")
 
-        # 3. Gemini API 응답 분석 (간단한 키워드 검색)
-        # 실제로는 더 정교한 분석 로직이 필요할 수 있습니다.
-        if "화재" in gemini_response or "연기" in gemini_response or "불" in gemini_response or "dangerous" in gemini_response.lower():
-            print("Gemini API 결과: 화재 또는 위험 상황으로 판단됨.")
-            description = f"화재 발생 의심 (Gemini 분석: {gemini_response[:200]})" # 메시지 길이 제한
-            status_message = StatusMessage(status="dangerous", description=description)
+        # 3. Gemini API 결과 딕셔너리에서 status와 description 추출
+        status = gemini_result.get("status", "normal") # 기본값 normal
+        description = gemini_result.get("description", "Gemini 분석 결과 없음")
+
+        # 4. 상태가 'dangerous'일 경우 웹소켓으로 브로드캐스트
+        # 필요에 따라 'hazardous' 상태일 때도 브로드캐스트 하도록 조건을 수정할 수 있습니다.
+        if status == "dangerous":
+            print(f"Gemini API 결과: {status} 상태 감지됨.")
+            # StatusMessage 생성 시 description 길이 제한 고려 (필요시)
+            status_message = StatusMessage(status=status, description=description[:200]) # description 길이 제한 예시
             
-            # 4. 웹소켓으로 브로드캐스트
+            # 웹소켓으로 브로드캐스트
             await connection_manager.broadcast_json(status_message)
             print("웹소켓으로 화재 경보 브로드캐스트 완료.")
         else:
-            print("Gemini API 결과: 화재 또는 명확한 위험 상황으로 판단되지 않음.")
-            # 일반적인 위험 상황이 아닌 경우, 'hazardous' 또는 'normal' 상태로 브로드캐스트 할 수도 있습니다.
-            # 여기서는 위험으로 판단될 때만 보내도록 합니다.
-            # description = f"객체 감지 (Gemini 분석: {gemini_response[:200]})"
-            # status_message = StatusMessage(status="hazardous", description=description) # 예시
-            # await connection_manager.broadcast_json(status_message)
-
+            print(f"Gemini API 결과: {status} 상태. 브로드캐스트하지 않음.")
+            # 위험하지 않은 상태 ('normal', 'hazardous')일 때 처리할 내용 (예: 로그만 남기기)
+            pass
 
     except Exception as e:
         print(f"fire_alert 처리 중 오류 발생: {e}")
