@@ -26,6 +26,8 @@ class FireEvent(BaseModel):
     event_type: str
     confidence: Optional[float] = None
     analysis: Optional[str] = None
+    file_path: Optional[str] = None
+    thumbnail_path: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -53,6 +55,7 @@ class EventDetail(BaseModel):
     address: str
     timestamp: datetime
     video_url: str
+    thumbnail_url: str
     description: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)

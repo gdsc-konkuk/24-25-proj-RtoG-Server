@@ -8,6 +8,9 @@ from sqlalchemy.orm import Session
 import uuid
 import os
 from datetime import datetime
+import cv2
+import asyncio
+from fastapi.responses import StreamingResponse
 
 import sys
 import os
@@ -15,8 +18,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from schemas import Video, FireEvent, RecordsResponse, EventDetail
 from models import Video as VideoModel, FireEvent as FireEventModel
-from services import  RecordService
+from services import RecordService, VideoProcessingService
 from database import get_db
+from config import settings
 
 router = APIRouter()
 
@@ -67,34 +71,49 @@ async def get_records(
     ```
     """
     result = RecordService.get_records(db, start, end)
+    
+    # thumbnail_url 필드 추가
+    for record in result:
+        for event in record["events"]:
+            if "thumbnail_url" not in event:
+                event["thumbnail_url"] = f"/static/record/events/{event['eventId']}_thumb.jpg"
+    
     return {"records": result}
 
-@router.get("/{eventId}", response_model=EventDetail)
-async def get_record_detail(eventId: str, db: Session = Depends(get_db)):
-    """
-    특정 화재 이벤트의 상세 정보를 반환합니다.
+@router.get("/{eventId}")
+async def get_record_detail(eventId: int, db: Session = Depends(get_db)):
+    """특정 이벤트의 저장된 영상을 스트리밍합니다."""
+    print(f"\n=== Debug: get_record_detail ===")
+    print(f"Requested eventId: {eventId}")
     
-    특징:
-    - 이벤트 영상 URL 제공
-    - CCTV 정보 및 설치 위치 포함
-    - 발생 시각 및 상세 설명 제공
-    
-    반환 예시:
-    ```json
-    {
-      "eventId": "evt_001",
-      "cctv_name": "강릉시청 앞 CCTV-1",
-      "address": "강원도 강릉시",
-      "timestamp": "2024-03-15T14:23:00",
-      "video_url": "/static/events/evt_001.mp4",
-      "description": "화재 감지 이벤트 상세 설명"
-    }
-    ```
-    """
-    detail = RecordService.get_record_detail(db, eventId)
-    if not detail:
+    event = db.query(FireEventModel).filter(FireEventModel.id == eventId).first()
+    if not event:
+        print(f"Event not found in database")
         raise HTTPException(status_code=404, detail="Event not found")
-    return detail
+    
+    print(f"Found event: {event.id}")
+    print(f"Event file_path: {event.file_path}")
+    
+    if not event.file_path:
+        print(f"Event file_path is None")
+        raise HTTPException(status_code=404, detail="Event video not found")
+    
+    # 파일 경로가 이미 static/record/events/event_YYYYMMDD_HHMMSS.mp4 형식으로 저장되어 있음
+    video_path = os.path.abspath(event.file_path)
+    print(f"Absolute video path: {video_path}")
+    print(f"Current working directory: {os.getcwd()}")
+    
+    if not os.path.exists(video_path):
+        print(f"Video file not found at: {video_path}")
+        raise HTTPException(status_code=404, detail=f"Video file not found at {video_path}")
+    
+    print(f"Video file exists, starting stream")
+    print("=== End Debug ===\n")
+    
+    return StreamingResponse(
+        VideoProcessingService.video_stream(video_path),
+        media_type="multipart/x-mixed-replace; boundary=frame"
+    )
 
 # SuspectEvent 관련 라우트는 FireEvent와 통합되거나 별도 관리될 수 있음.
 # 현재 schemas.py 에는 SuspectEvent가 있고, models.py에는 FireEvent, SuspectEvent 둘 다 있음.

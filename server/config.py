@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     DOCS_URL: str = "/api/docs"
     REDOC_URL: str = "/api/redoc"
     
-    VIDEO_STORAGE_PATH: str = "static/video"
-    VIDEO_UPLOAD_DIR: str = "uploads"
+    VIDEO_STORAGE_PATH: str = "static/video"  # 원본 비디오 저장 경로
+    RECORD_STORAGE_PATH: str = "static/record"  # 이벤트 영상과 썸네일 저장 경로
     ALLOWED_VIDEO_TYPES: List[str] = ["video/mp4", "video/x-msvideo", "video/quicktime"]
     MAX_VIDEO_SIZE: int = 100 * 1024 * 1024  # 100MB
     
