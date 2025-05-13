@@ -6,9 +6,8 @@
 
 import base64
 import requests
-import json
 from config import settings
-from typing import Dict, Literal # Dict, Literal 추가
+from typing import Dict, Literal
 
 # StatusMessage와 동일한 상태 정의 (의존성을 피하기 위해 여기에 정의)
 StatusType = Literal["dangerous", "normal", "hazardous"]
@@ -34,7 +33,7 @@ def parse_gemini_response(response_text: str) -> Dict[str, str]:
         if line.lower().startswith("status:"):
             extracted_status = line.split(":", 1)[1].strip().lower()
             if extracted_status in ["dangerous", "hazardous", "normal"]:
-                status = extracted_status # type: ignore # Literal 타입 검증 완료
+                status = extracted_status
             else:
                  print(f"Warning: Gemini returned unknown status '{extracted_status}'. Defaulting to 'normal'.")
                  status = "normal" # 알 수 없는 상태면 normal로 처리
@@ -83,7 +82,7 @@ Description: [description in Korean]''')
                     "text": prompt
                 }, {
                     "inline_data": {
-                        "mime_type": "image/jpeg", # 이미지 타입은 상황에 맞게 조정 가능
+                        "mime_type": "image/jpeg",
                         "data": base64_image
                     }
                 }]
@@ -104,9 +103,7 @@ Description: [description in Korean]''')
         
         if response.status_code == 200:
             response_data = response.json()
-            # 응답 구조 확인 및 텍스트 추출
             try:
-                # 응답 구조가 예상과 다를 수 있으므로 주의 깊게 처리
                 if "candidates" in response_data and response_data["candidates"]:
                      content = response_data["candidates"][0].get("content", {})
                      if "parts" in content and content["parts"]:
@@ -118,40 +115,19 @@ Description: [description in Korean]''')
                      else:
                          return {"status": "normal", "description": "Gemini 응답 형식이 예상과 다릅니다. (parts 없음)"}
                 else:
-                     # 오류 응답 처리 (예: safetyRatings)
                      error_info = response_data.get("promptFeedback", {}).get("blockReason", "Unknown reason")
                      return {"status": "normal", "description": f"Gemini API가 유효한 응답을 반환하지 않았습니다. 이유: {error_info}"}
 
             except (IndexError, KeyError, TypeError) as e:
                  print(f"Error parsing Gemini response structure: {e}")
-                 # 복잡한 에러 발생 시 전체 응답을 로깅하거나 반환하여 디버깅 지원
                  error_desc = f"Gemini 응답 파싱 오류: {e}. 응답: {str(response_data)[:200]}"
                  return {"status": "normal", "description": error_desc}
 
         else:
-            error_body = response.text # 오류 내용 확인
+            error_body = response.text
             return {"status": "normal", "description": f"API 호출 실패: {response.status_code}. 응답: {error_body[:200]}"}
 
     except requests.exceptions.Timeout:
          return {"status": "normal", "description": "Gemini API 호출 시간 초과"}
     except Exception as e:
         return {"status": "normal", "description": f"이미지 분석 중 오류 발생: {str(e)}"}
-
-if __name__ == "__main__":
-    # 테스트 코드: 실제 API 호출 시에는 주의
-    # 이미지 파일 경로 설정 필요
-    test_image_path = "path/to/your/test_image.jpg" # 실제 이미지 경로로 변경하세요.
-    
-    if settings.GEMINI_API_KEY:
-        print("Gemini API 키가 설정되었습니다. 테스트를 진행합니다...")
-        # if os.path.exists(test_image_path): # os 임포트 필요
-        #     result = use_gemini(test_image_path)
-        #     print("분석 결과:")
-        #     print(f"  Status: {result.get('status')}")
-        #     print(f"  Description: {result.get('description')}")
-        # else:
-        #     print(f"테스트 이미지를 찾을 수 없습니다: {test_image_path}")
-        print("테스트를 위해 실제 이미지 경로를 설정하고 주석을 해제하세요.") # 가이드 메시지 변경
-            
-    else:
-        print("Gemini API 키가 설정되지 않아 테스트를 진행할 수 없습니다.")

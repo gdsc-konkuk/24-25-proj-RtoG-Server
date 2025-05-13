@@ -3,16 +3,15 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 from collections import deque
-import tempfile # 임시 파일 생성을 위해 추가
-import os # 파일 경로 처리를 위해 추가
+import tempfile 
+import os 
 
-# 현재 디렉토리를 기준으로 모듈을 임포트하도록 수정
-from . import gemini
-from .websocket_manager import connection_manager, StatusMessage
+import gemini
+from websocket_manager import connection_manager, StatusMessage
 
 # YOLO 모델 로드 (애플리케이션 시작 시 한 번 로드 권장)
-model = YOLO('./best.pt') # 예시 모델 경로
-print("YOLO model loaded.") # 로딩 확인 로그
+model = YOLO('./best.pt') 
+print("YOLO model loaded.")
 
 # 최근 3개 프레임의 화재 관련 객체 감지 여부 저장 (True: 감지됨, False: 감지 안됨)
 recent_detections = deque(maxlen=3)
