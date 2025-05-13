@@ -27,7 +27,6 @@ jobs:
       - name: Check if Uvicorn runs
         working-directory: ./server
         run: |
-          source venv/bin/activate
           # Run Uvicorn in background
           uvicorn main:app --reload &
           # Wait briefly to ensure the server starts
