@@ -2,67 +2,95 @@
 # Google Gemini Pro Vision API를 사용한 이미지 분석
 # - 이미지 파일을 base64로 인코딩
 # - API 호출을 통한 이미지 분석
-# - 분석 결과 반환
+# - 분석 결과 반환 (status, description 딕셔너리 형태)
 
-import base64
-import requests
-import json
+import google.generativeai as genai
+from PIL import Image
 from config import settings
+from typing import Dict, Literal, Set
 
-API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent"
+# StatusMessage와 동일한 상태 정의 (의존성을 피하기 위해 여기에 정의)
+StatusType = Literal["dangerous", "normal", "hazardous"]
 
-def encode_image_to_base64(image_path: str) -> str:
-    with open(image_path, "rb") as image_file:
-        return base64.b64encode(image_file.read()).decode("utf-8")
+# 상수 정의
+DEFAULT_DESCRIPTION = "Couldn't parse the response."
+DANGEROUS_KEYWORDS: Set[str] = {"fire", "smoke", "flame", "burning", "blaze"}
+HAZARDOUS_KEYWORDS: Set[str] = {"danger", "hazard", "risk", "warning", "caution"}
 
-def use_gemini(image_path: str) -> str:
+def parse_gemini_response(response_text: str) -> Dict[str, str]:
+    """
+    Gemini 응답 텍스트를 파싱하여 status와 description을 추출합니다.
+    예상 형식:
+    Status: [dangerous|hazardous|normal]
+    Description: [상세 설명]
+    """
+    status: StatusType = "normal"  # 기본값
+    description = DEFAULT_DESCRIPTION  # 기본값
+    
+    if not response_text:
+        return {"status": status, "description": description}
+    
+    # 응답 텍스트를 소문자로 변환하여 키워드 매칭을 용이하게 함
+    response_lower = response_text.lower()
+    
+    # Status와 Description 형식으로 파싱 시도
+    lines = response_text.strip().split('\n')
+    for line in lines:
+        line_lower = line.lower()
+        if line_lower.startswith("status:"):
+            extracted_status = line.split(":", 1)[1].strip().lower()
+            if extracted_status in ["dangerous", "hazardous", "normal"]:
+                status = extracted_status
+            else:
+                print(f"Warning: Gemini returned unknown status '{extracted_status}'. Defaulting to 'normal'.")
+        elif line_lower.startswith("description:"):
+            description = line.split(":", 1)[1].strip()
+    
+    # 형식화된 응답이 없는 경우, 전체 응답을 description으로 사용하고 키워드 기반으로 status 결정
+    if description == DEFAULT_DESCRIPTION:
+        description = response_text.strip()
+        # 키워드 기반 status 결정
+        if any(keyword in response_lower for keyword in DANGEROUS_KEYWORDS):
+            status = "dangerous"
+        elif any(keyword in response_lower for keyword in HAZARDOUS_KEYWORDS):
+            status = "hazardous"
+    
+    return {"status": status, "description": description}
+
+def use_gemini(image_path: str) -> Dict[str, str]:
+    """
+    Gemini API를 호출하여 이미지를 분석하고, 상태(status)와 설명(description)을 포함한 딕셔너리를 반환합니다.
+    """
     if not settings.GEMINI_API_KEY:
-        return "Gemini API key not configured"
+        return {"status": "normal", "description": "Gemini API key not configured"}
 
     try:
-        base64_image = encode_image_to_base64(image_path)
+        # Gemini API 설정
+        genai.configure(api_key=settings.GEMINI_API_KEY)
         
-        headers = {
-            "Content-Type": "application/json"
-        }
+        # 이미지 로드
+        image = Image.open(image_path)
         
-        data = {
-            "contents": [{
-                "parts":[{
-                    "text": "이 이미지에서 화재나 연기, 위험한 상황이 보이나요? 보인다면 어떤 위험이 있는지 자세히 설명해주세요."
-                }, {
-                    "inline_data": {
-                        "mime_type": "image/jpeg",
-                        "data": base64_image
-                    }
-                }]
-            }]
-        }
+        # Gemini 모델 설정
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        # 프롬프트 설정
+        prompt = '''Analyze this image for fire, smoke, or other hazards. 
+Classify the situation as 'dangerous', 'hazardous', or 'normal'. 
+Provide a concise description of what you see. 
+Respond ONLY in the following format:
+Status: [classification]
+Description: [description]'''
 
-        response = requests.post(
-            f"{API_URL}?key={settings.GEMINI_API_KEY}",
-            headers=headers,
-            json=data,
-            timeout=10
-        )
+        # 이미지 분석 요청
+        response = model.generate_content([prompt, image])
         
-        if response.status_code == 200:
-            response_data = response.json()
-            if "candidates" in response_data:
-                return response_data["candidates"][0]["content"]["parts"][0]["text"]
-            return "분석 결과를 찾을 수 없습니다."
+        if response.text:
+            return parse_gemini_response(response.text)
         else:
-            return f"API 호출 실패: {response.status_code}"
+            return {"status": "normal", "description": "Empty gemini response."}
 
     except Exception as e:
-        return f"이미지 분석 중 오류 발생: {str(e)}"
-
-if __name__ == "__main__":
-    # 이 부분은 실제 API 호출 시에는 직접 실행되지 않으므로, 테스트 코드로 분리하거나 삭제 고려
-    # 여기서는 config에서 키를 잘 불러오는지 확인하는 용도로 남겨둘 수 있지만, 
-    # 실제 운영시는 삭제하거나 if 문으로 감싸는 것이 좋음
-    if settings.GEMINI_API_KEY:
-        print("Gemini API 키가 설정되었습니다. 테스트를 진행하려면 이미지를 제공해야 합니다.")
-        # 예: use_gemini("test_image.jpg")
-    else:
-        print("Gemini API 키가 설정되지 않아 테스트를 진행할 수 없습니다.")
+        error_message = f"Error while processing image: {str(e)}"
+        print(error_message)
+        return {"status": "normal", "description": error_message}
