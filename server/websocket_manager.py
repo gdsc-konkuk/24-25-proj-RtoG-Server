@@ -5,9 +5,15 @@
 # - 모든 연결된 클라이언트에게 JSON 메시지 브로드캐스팅 (broadcast_json)
 
 from fastapi import WebSocket, WebSocketDisconnect
-from typing import List, Dict, Set, Optional, Any
+from typing import List, Dict, Set, Optional, Any, Literal
 import asyncio
 import json
+from pydantic import BaseModel
+
+# 메시지 형식을 정의하는 Pydantic 모델
+class StatusMessage(BaseModel):
+    status: Literal["dangerous", "normal", "hazardous"]
+    description: str
 
 class UnifiedConnectionManager:
     def __init__(self):
@@ -26,14 +32,15 @@ class UnifiedConnectionManager:
         else:
             print(f"Attempted to disconnect inactive client: {websocket.client}")
 
-    async def broadcast_json(self, message: Dict[str, Any]):
-        """Sends a JSON message to all connected clients."""
+    async def broadcast_json(self, message: StatusMessage):
+        """Sends a StatusMessage JSON message to all connected clients."""
         disconnected_clients = []
-        print(f"Broadcasting message to {len(self.active_connections)} clients: {message}")
+        message_dict = message.model_dump()
+        print(f"Broadcasting message to {len(self.active_connections)} clients: {message_dict}")
         connections_to_broadcast = list(self.active_connections)
         for connection in connections_to_broadcast:
             try:
-                await connection.send_json(message)
+                await connection.send_json(message_dict)
             except WebSocketDisconnect:
                 print(f"Client disconnected during broadcast: {connection.client}")
                 disconnected_clients.append(connection)
