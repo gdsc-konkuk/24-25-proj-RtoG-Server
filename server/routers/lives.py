@@ -23,7 +23,7 @@ async def stream_video_realtime(video_id: str, db: Session = Depends(get_db)):
     video_path = f"{settings.VIDEO_STORAGE_PATH}/{video.id}.mp4"
     print(f"Attempting to stream video from: {video_path}")
     return StreamingResponse(
-        VideoProcessingService.frame_generator_with_yolo(video_path), 
+        VideoProcessingService.frame_generator_with_yolo(video_path, video_id), 
         media_type="multipart/x-mixed-replace; boundary=frame"
     )
 
