@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     DOCS_URL: str = "/api/docs"
     REDOC_URL: str = "/api/redoc"
     
+    VIDEO_STORAGE_PATH: str = "video-storage" # 스트리밍할 영상 원본이 저장된 경로
     VIDEO_UPLOAD_DIR: str = "uploads"
     ALLOWED_VIDEO_TYPES: List[str] = ["video/mp4", "video/x-msvideo", "video/quicktime"]
     MAX_VIDEO_SIZE: int = 100 * 1024 * 1024  # 100MB
