@@ -2,7 +2,7 @@
 # API 요청/응답 데이터의 유효성 검사와 직렬화를 위한 Pydantic 모델 정의
 
 from pydantic import BaseModel, ConfigDict
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 class Video(BaseModel):
@@ -38,18 +38,13 @@ class SuspectEvent(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-class LiveCCTV(BaseModel):
-    """실시간 CCTV 정보"""
+class CCTVBase(BaseModel):
     id: str
     name: str
     address: str
-    socket_id: str
-
-    model_config = ConfigDict(from_attributes=True)
 
 class LiveResponse(BaseModel):
-    """실시간 CCTV 목록 응답"""
-    cctvs: list[LiveCCTV]
+    cctvs: List[CCTVBase]
 
 class EventDetail(BaseModel):
     """화재 이벤트 상세 정보"""

@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 
 from config import settings 
 from models import Video, FireEvent
+from sqlalchemy.orm import Session
 
 
 class VideoProcessingService:
@@ -93,17 +94,19 @@ class LiveService:
     """실시간 CCTV 스트리밍 가능 목록 제공"""
 
     @staticmethod
-    def get_lives(db) -> list[dict]:
-        """데이터베이스에서 비디오 목록을 가져와 반환합니다."""
-        videos = db.query(Video).all()
+    def get_lives(db: Session):
+        """
+        DB에서 실시간 스트리밍 가능한 CCTV 목록을 조회합니다.
+        """
+        videos = db.query(Video).filter(Video.status == "active").all()
+        print(videos)
         return [
             {
-                "id": f"cctv_{v.id:03d}",
-                "name": v.cctv_name or v.filename,
-                "address": v.location or "",
-                "video_id": v.id
+                "id": video.id,
+                "name": video.cctv_name,
+                "address": video.location
             }
-            for v in videos
+            for video in videos
         ]
 
 class RecordService:

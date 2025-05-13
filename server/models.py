@@ -23,7 +23,6 @@ class Video(Base):
     installation_date = Column(String, nullable=True)
     resolution = Column(String, nullable=True)
     angle = Column(String, nullable=True)
-    owner_id = Column(String, nullable=False, index=True)  # 소유자 ID
 
     events = relationship("FireEvent", back_populates="video")
     suspect_events = relationship("SuspectEvent", back_populates="video")
