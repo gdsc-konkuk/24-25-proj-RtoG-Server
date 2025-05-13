@@ -77,16 +77,19 @@ class VideoProcessingService:
                 cap.release()
 
     @staticmethod
-    async def frame_generator_with_yolo(video_path: str, cctv_id: str):
+    async def frame_generator_with_yolo(video_id: str):
         """
-        주어진 영상 파일 경로를 통해 프레임을 읽고, YOLO 검증 후 마킹된 프레임을 생성하여 yield 합니다.
+        주어진 video_id를 통해 프레임을 읽고, YOLO 검증 후 마킹된 프레임을 생성하여 yield 합니다.
         영상이 끝나면 자동으로 처음부터 다시 재생됩니다.
         
         Args:
-            video_path: 비디오 파일 경로
-            cctv_id: CCTV 식별자
+            video_id: 비디오 식별자
         """
         try:
+            # video_id로부터 video_path 생성
+            video_path = os.path.join(settings.VIDEO_STORAGE_PATH, f"{video_id}.mp4")
+            print(f"Debug: Looking for video at: {video_path}")
+            
             cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
                 print(f"Error: Could not open video file at {video_path}")
@@ -95,13 +98,13 @@ class VideoProcessingService:
             while True:
                 ret, frame = cap.read()
                 if not ret:
-                    print(f"Info: 영상이 끝났습니다. CCTV {cctv_id} 영상을 처음부터 다시 재생합니다.")
+                    print(f"Info: 영상이 끝났습니다. CCTV {video_id} 영상을 처음부터 다시 재생합니다.")
                     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # 영상을 처음으로 되돌림
                     continue  # 다음 프레임 읽기 시도
 
                 # YOLO 검증 및 프레임 마킹
                 try:
-                    marked_frame = await process_frame_with_yolo(frame, cctv_id)
+                    marked_frame = await process_frame_with_yolo(frame, video_id)
                 except Exception as yolo_err:
                     print(f"Error during YOLO processing: {yolo_err}")
                     # 오류 발생 시 원본 프레임을 전송합니다.
