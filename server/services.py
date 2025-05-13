@@ -8,6 +8,12 @@
 
 import os
 from typing import Any
+import cv2
+import asyncio
+import numpy as np
+from fastapi import HTTPException
+from fastapi.responses import StreamingResponse
+from yolo import process_frame_with_yolo
 
 from ultralytics import YOLO
 from datetime import datetime, timedelta
@@ -29,6 +35,59 @@ class VideoProcessingService:
             content = file.file.read()
             buffer.write(content)
         return file_path
+
+    @staticmethod
+    async def frame_generator_with_yolo(video_path: str):
+        """
+        주어진 영상 파일 경로를 통해 프레임을 읽고, YOLO 검증 후 마킹된 프레임을 생성하여 yield 합니다.
+        """
+        try:
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                print(f"Error: Could not open video file at {video_path}")
+                raise HTTPException(status_code=404, detail="영상을 열 수 없습니다.")
+
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    print("Info: Reached end of video or failed to read frame.")
+                    break  # 영상의 끝 또는 프레임 읽기 실패
+
+                # YOLO 검증 및 프레임 마킹
+                try:
+                    marked_frame = await process_frame_with_yolo(frame)
+                except Exception as yolo_err:
+                    print(f"Error during YOLO processing: {yolo_err}")
+                    # 오류 발생 시 원본 프레임을 전송합니다.
+                    marked_frame = frame
+
+                if marked_frame is None or marked_frame.size == 0:
+                    print("Warning: Marked frame is empty.")
+                    continue
+
+                # 마킹된 프레임을 JPEG 형식으로 인코딩
+                ret, encoded_frame = cv2.imencode('.jpg', marked_frame)
+                if not ret:
+                    print("Warning: Failed to encode frame to JPEG.")
+                    continue
+
+                # 스트리밍 형식에 맞게 yield
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + encoded_frame.tobytes() + b'\r\n')
+                await asyncio.sleep(0.01) # 스트리밍 간격 조절 (필요에 따라 조정)
+
+        except FileNotFoundError:
+            print(f"Error: Video file not found at {video_path}")
+            raise HTTPException(status_code=404, detail="영상을 찾을 수 없습니다.")
+        except HTTPException as http_exc:
+            raise http_exc
+        except Exception as e:
+            print(f"Error in frame generator: {e}")
+            raise HTTPException(status_code=500, detail=f"프레임 처리 또는 스트리밍 중 오류 발생: {e}")
+        finally:
+            if 'cap' in locals() and cap.isOpened():
+                cap.release()
+                print("Info: Video capture released.")
 
 class LiveService:
     """실시간 CCTV 스트리밍 가능 목록 제공"""
