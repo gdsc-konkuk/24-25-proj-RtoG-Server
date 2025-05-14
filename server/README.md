@@ -74,6 +74,33 @@
     - Swagger UI: http://localhost:8000/api/docs
     - ReDoc: http://localhost:8000/api/redoc
 
+## 도커로 실행
+
+1. 도커 이미지 가져오기
+    ```bash
+    docker pull peter012677/rtog-server
+    ```
+
+2. 도커 실행 (기본)
+    ```bash
+    docker run -d \
+      -p 8000:8000 \
+      -e GEMINI_API_KEY=your_api_key_here \
+      --name rtog-server \
+      peter012677/rtog-server
+    ```
+
+3. 파일시스템 마운트 옵션 (영속성 보전) : 꼭 사용할 필요x
+    ```bash
+    docker run -d \
+      -p 8000:8000 \
+      -e GEMINI_API_KEY=your_api_key_here \
+      -v $(pwd)/database.db:/app/database.db \
+      -v $(pwd)/static:/app/static \
+      --name rtog-server \
+      peter012677/rtog-server
+    ```
+
 ## API 엔드포인트
 
 ### HTTP API (Prefix: `/api/v1`)
