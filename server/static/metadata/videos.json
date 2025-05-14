@@ -5,7 +5,7 @@
             "filename": "video_001.mp4",
             "location": "강원도 강릉시",
             "cctv_name": "강릉시청 앞 CCTV-1",
-            "installation_date": "2024-01-01",
+            "installation_date": "2025-03-05",
             "resolution": "1920x1080",
             "angle": "45",
             "status": "active"
@@ -15,7 +15,7 @@
             "filename": "video_002.mp4",
             "location": "강원도 강릉시",
             "cctv_name": "강릉시청 앞 CCTV-2",
-            "installation_date": "2024-01-01",
+            "installation_date": "2025-03-27",
             "resolution": "1920x1080",
             "angle": "45",
             "status": "active"
