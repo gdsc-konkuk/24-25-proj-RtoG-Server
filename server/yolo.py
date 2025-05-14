@@ -20,6 +20,7 @@ import gemini
 from websocket_manager import connection_manager, StatusMessage
 from config import settings
 from models import FireEvent, Video
+from PIL import ImageFont, ImageDraw, Image  # 한글 라벨 출력을 위한 Pillow 추가
 
 # YOLO 모델 로드 (애플리케이션 시작 시 한 번 로드 권장)
 model = YOLO('./best.pt') 
@@ -196,6 +197,31 @@ async def fire_alert(current_frame: np.ndarray, cctv_id: str):
         if os.path.exists(temp_image_path):
             os.unlink(temp_image_path)
 
+def draw_text_with_pil(img, text, position, font_path='NanumGothic.ttf', font_size=20, color=(0,255,0)):
+    """
+    Pillow를 사용해 한글 라벨을 이미지에 출력하는 함수
+    Args:
+        img: OpenCV 이미지 (np.ndarray)
+        text: 출력할 텍스트
+        position: (x, y) 좌표
+        font_path: 한글 지원 TTF 폰트 경로 (예: 'NanumGothic.ttf')
+        font_size: 폰트 크기
+        color: (B, G, R) 색상
+    Returns:
+        np.ndarray: 텍스트가 그려진 이미지
+    """
+    # OpenCV 이미지를 PIL 이미지로 변환
+    img_pil = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(img_pil)
+    try:
+        font = ImageFont.truetype(font_path, font_size)
+    except Exception as e:
+        print(f"폰트 로드 실패: {e}. 기본 폰트로 대체합니다.")
+        font = ImageFont.load_default()
+    draw.text(position, text, font=font, fill=(color[2], color[1], color[0]))  # PIL은 RGB, OpenCV는 BGR
+    # PIL 이미지를 다시 OpenCV 이미지로 변환
+    return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+
 async def process_frame_with_yolo(frame: np.ndarray, cctv_id: str) -> np.ndarray:
     """
     주어진 NumPy 배열 형태의 프레임에 대해 YOLO 객체 검출을 수행하고,
@@ -226,7 +252,10 @@ async def process_frame_with_yolo(frame: np.ndarray, cctv_id: str) -> np.ndarray
                     label = f"Class {cls} {conf:.2f}"
                 
                 cv2.rectangle(marked_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(marked_frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_DUPLEX, 0.5, (0, 255, 0), 2)
+                # 한글 라벨을 위해 Pillow 함수 사용 (폰트 경로는 필요에 따라 수정)
+                marked_frame = draw_text_with_pil(marked_frame, label, (x1, y1 - 25), font_path='./NanumGothic.ttf', font_size=20, color=(0,255,0))
+                # 기존 cv2.putText는 주석 처리
+                # cv2.putText(marked_frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_DUPLEX, 0.5, (0, 255, 0), 2)
             except Exception as e:
                 print(f"Error processing box: {e}")
                 continue
