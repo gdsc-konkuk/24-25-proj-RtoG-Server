@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     YOLO_MODEL_PATH: str = "best.pt"
     YOLO_CONFIDENCE_THRESHOLD: float = 0.5
     
-    GEMINI_API_KEY: str
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     SQLALCHEMY_DATABASE_URL: str = "sqlite:///./database.db"
     
     class Config:
