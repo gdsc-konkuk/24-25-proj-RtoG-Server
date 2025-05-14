@@ -19,15 +19,15 @@ class Settings(BaseSettings):
     DOCS_URL: str = "/api/docs"
     REDOC_URL: str = "/api/redoc"
     
-    VIDEO_STORAGE_PATH: str = "static/video"
-    VIDEO_UPLOAD_DIR: str = "uploads"
+    VIDEO_STORAGE_PATH: str = "static/video"  # 원본 비디오 저장 경로
+    RECORD_STORAGE_PATH: str = "static/record"  # 이벤트 영상과 썸네일 저장 경로
     ALLOWED_VIDEO_TYPES: List[str] = ["video/mp4", "video/x-msvideo", "video/quicktime"]
     MAX_VIDEO_SIZE: int = 100 * 1024 * 1024  # 100MB
     
     YOLO_MODEL_PATH: str = "best.pt"
     YOLO_CONFIDENCE_THRESHOLD: float = 0.5
     
-    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_API_KEY: str
     SQLALCHEMY_DATABASE_URL: str = "sqlite:///./database.db"
     
     class Config:
@@ -35,4 +35,4 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
 
-settings = Settings() 
+settings = Settings()

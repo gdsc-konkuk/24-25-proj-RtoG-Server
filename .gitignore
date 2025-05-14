@@ -36,3 +36,4 @@ runs/
 
 server/database.db
 server/uploads/
+server/static/record/**

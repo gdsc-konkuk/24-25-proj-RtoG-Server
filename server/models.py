@@ -36,6 +36,8 @@ class FireEvent(Base):
     event_type = Column(String)
     confidence = Column(Float, nullable=True)
     analysis = Column(String, nullable=True)
+    file_path = Column(String, nullable=True)  # 저장된 영상 파일 경로
+    thumbnail_path = Column(String, nullable=True)  # 썸네일 이미지 경로
 
     video = relationship("Video", back_populates="events")
 

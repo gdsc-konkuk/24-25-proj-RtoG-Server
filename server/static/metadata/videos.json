@@ -2,7 +2,7 @@
     "videos": [
         {
             "id": "video_001",
-            "filename": "wildfire-test-001.mp4",
+            "filename": "video_001.mp4",
             "location": "강원도 강릉시",
             "cctv_name": "강릉시청 앞 CCTV-1",
             "installation_date": "2024-01-01",
@@ -12,7 +12,7 @@
         },
         {
             "id": "video_002",
-            "filename": "wildfire-test-002.mp4",
+            "filename": "video_002.mp4",
             "location": "강원도 강릉시",
             "cctv_name": "강릉시청 앞 CCTV-2",
             "installation_date": "2024-01-01",
