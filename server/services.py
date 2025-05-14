@@ -161,7 +161,7 @@ class RecordService:
     """화재 이벤트 기록 관련 서비스"""
     
     @staticmethod
-    def get_records(db, start=None, end=None):
+    def get_records(db: Session, start: str = None, end: str = None):
         """일자별로 그룹화된 화재 이벤트 목록을 반환합니다."""
         try:
             query = db.query(FireEvent).join(Video)
@@ -188,9 +188,14 @@ class RecordService:
                 if date_str not in daily_events:
                     daily_events[date_str] = []
                     
-                # 썸네일 URL을 전체 URL로 변경
-                thumbnail_path = event.thumbnail_path or f"event_{event.timestamp.strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
-                thumbnail_url = f"http://localhost:8000/static/record/events/{thumbnail_path}"
+                # 썸네일 파일 이름만 추출 또는 생성
+                if event.thumbnail_path:
+                    actual_thumbnail_filename = os.path.basename(event.thumbnail_path)
+                else:
+                    actual_thumbnail_filename = f"event_{event.timestamp.strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
+                
+                # 상대 경로로 thumbnail_url 생성
+                thumbnail_url = f"/static/record/events/{actual_thumbnail_filename}"
                     
                 daily_events[date_str].append({
                     "eventId": f"evt_{event.id:03d}",
@@ -211,7 +216,7 @@ class RecordService:
             raise HTTPException(status_code=500, detail=f"이벤트 조회 중 오류 발생: {str(e)}")
 
     @staticmethod
-    def get_record_detail(db, event_id):
+    def get_record_detail(db: Session, event_id: str):
         """특정 화재 이벤트의 상세 정보를 반환합니다."""
         try:
             if not event_id.startswith("evt_") or not event_id[4:].isdigit():
@@ -222,13 +227,22 @@ class RecordService:
             if not event:
                 return None
 
+            # 썸네일 파일 이름만 추출 또는 생성
+            if event.thumbnail_path:
+                actual_thumbnail_filename_detail = os.path.basename(event.thumbnail_path)
+            else:
+                actual_thumbnail_filename_detail = f"event_{event.timestamp.strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
+            
+            # 상대 경로로 thumbnail_url 생성
+            thumbnail_url_detail = f"/static/record/events/{actual_thumbnail_filename_detail}"
+
             return {
                 "eventId": f"evt_{event.id:03d}",
                 "cctv_name": event.video.cctv_name or event.video.filename,
                 "address": event.video.location or "주소 정보 없음",
                 "timestamp": event.timestamp.isoformat(),
                 "description": event.analysis or "상세 분석 정보 없음",
-                "thumbnail_url": event.thumbnail_path or f"/static/record/events/event_{event.timestamp.strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
+                "thumbnail_url": thumbnail_url_detail
             }
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
