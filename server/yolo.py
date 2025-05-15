@@ -162,7 +162,7 @@ async def fire_alert(current_frame: np.ndarray, cctv_id: str):
         await connection_manager.broadcast_json(
             StatusMessage(
                 status=event_type,
-                description=analysis.get("analysis", ""),
+                description=analysis.get("description", ""),
                 cctvId=cctv_id
             )
         )
@@ -183,7 +183,7 @@ async def fire_alert(current_frame: np.ndarray, cctv_id: str):
                 fps=fps,
                 db=db,
                 video_id=cctv_id,
-                analysis=analysis.get("analysis", ""),
+                analysis=analysis.get("description", ""),
                 event_type=event_type
             )
             

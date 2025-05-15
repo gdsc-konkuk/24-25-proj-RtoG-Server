@@ -67,6 +67,7 @@ class EventSummary(BaseModel):
     address: str
     thumbnail_url: str
     timestamp: datetime
+    description: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
