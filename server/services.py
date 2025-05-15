@@ -202,6 +202,7 @@ class RecordService:
                     "cctv_name": event.video.cctv_name or event.video.filename,
                     "address": event.video.location or "주소 정보 없음",
                     "timestamp": event.timestamp.isoformat(),
+                    "description": event.analysis or "상세 분석 정보 없음",
                     "thumbnail_url": thumbnail_url
                 })
                 
