@@ -78,4 +78,16 @@ class DailyEvents(BaseModel):
 
 class RecordsResponse(BaseModel):
     """화재 이벤트 기록 목록 응답"""
-    records: list[DailyEvents] 
+    records: list[DailyEvents]
+
+class LiveEvent(BaseModel):
+    """CCTV의 최근 화재 이벤트 정보"""
+    eventId: str
+    video_id: str
+    cctv_name: str
+    address: str
+    timestamp: datetime
+    description: Optional[str] = None
+    event_type: str
+
+    model_config = ConfigDict(from_attributes=True) 

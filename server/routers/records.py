@@ -50,6 +50,7 @@ async def get_records(
               "cctv_name": "강릉시청 앞 CCTV-1",
               "address": "강원도 강릉시",
               "thumbnail_url": "/static/events/evt_001.jpg",
+              "description": "화재 발생",
               "timestamp": "2024-03-15T14:23:00"
             }
           ]
@@ -62,6 +63,7 @@ async def get_records(
               "cctv_name": "강릉시청 앞 CCTV-2",
               "address": "강원도 강릉시",
               "thumbnail_url": "/static/events/evt_002.jpg",
+              "description": "화재 발생",
               "timestamp": "2024-03-14T15:30:00"
             }
           ]
