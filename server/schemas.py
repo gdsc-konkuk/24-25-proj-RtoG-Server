@@ -83,6 +83,7 @@ class RecordsResponse(BaseModel):
 class LiveEvent(BaseModel):
     """CCTV의 최근 화재 이벤트 정보"""
     eventId: str
+    video_id: str
     cctv_name: str
     address: str
     timestamp: datetime

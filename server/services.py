@@ -158,6 +158,7 @@ class LiveService:
 
             return {
                 "eventId": f"evt_{latest_event.id:03d}",
+                "video_id": latest_event.video_id,
                 "cctv_name": latest_event.video.cctv_name or latest_event.video.filename,
                 "address": latest_event.video.location or "주소 정보 없음",
                 "timestamp": latest_event.timestamp.isoformat(),
