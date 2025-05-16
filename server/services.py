@@ -197,7 +197,8 @@ class LiveService:
             {
                 "id": video.id,
                 "name": video.cctv_name,
-                "address": video.location
+                "address": video.location,
+                "status": video.status
             }
             for video in videos
         ]
