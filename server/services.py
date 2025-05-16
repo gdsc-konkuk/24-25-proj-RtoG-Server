@@ -142,6 +142,31 @@ class LiveService:
     """실시간 CCTV 스트리밍 가능 목록 제공"""
 
     @staticmethod
+    def get_latest_event(db: Session, video_id: str) -> dict:
+        """특정 CCTV의 가장 최근 화재 이벤트를 반환합니다."""
+        try:
+            # 해당 CCTV의 가장 최근 이벤트 조회
+            latest_event = (
+                db.query(FireEvent)
+                .filter(FireEvent.video_id == video_id)
+                .order_by(FireEvent.timestamp.desc())
+                .first()
+            )
+
+            if not latest_event:
+                return None
+
+            return {
+                "eventId": f"evt_{latest_event.id:03d}",
+                "cctv_name": latest_event.video.cctv_name or latest_event.video.filename,
+                "address": latest_event.video.location or "주소 정보 없음",
+                "timestamp": latest_event.timestamp.isoformat(),
+                "description": latest_event.analysis or "상세 분석 정보 없음"
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"최근 이벤트 조회 중 오류 발생: {str(e)}")
+
+    @staticmethod
     def get_lives(db: Session):
         """
         DB에서 실시간 스트리밍 가능한 CCTV 목록을 조회합니다.

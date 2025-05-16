@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 from services import LiveService, VideoProcessingService
-from schemas import LiveResponse
+from schemas import LiveResponse, LiveEvent
 from fastapi.responses import StreamingResponse
 from config import settings
 from models import Video
@@ -51,4 +51,12 @@ async def lives_endpoint(db: Session = Depends(get_db)):
     }
     ```
     """
-    return {"cctvs": LiveService.get_lives(db)} 
+    return {"cctvs": LiveService.get_lives(db)}
+
+@router.get("/{video_id}/latest", response_model=LiveEvent)
+def get_latest_event(video_id: str, db: Session = Depends(get_db)):
+    """특정 CCTV의 가장 최근 화재 이벤트 정보를 반환합니다."""
+    event = LiveService.get_latest_event(db, video_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="최근 이벤트를 찾을 수 없습니다.")
+    return event 
