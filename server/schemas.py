@@ -87,5 +87,6 @@ class LiveEvent(BaseModel):
     address: str
     timestamp: datetime
     description: Optional[str] = None
+    event_type: str
 
     model_config = ConfigDict(from_attributes=True) 

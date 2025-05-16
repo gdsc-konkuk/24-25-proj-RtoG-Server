@@ -7,7 +7,7 @@
 # - RecordService: 화재 이벤트 기록을 관리합니다.
 
 import os
-from typing import Any
+from typing import Any, List
 import cv2
 import asyncio
 import numpy as np
@@ -161,8 +161,27 @@ class LiveService:
                 "cctv_name": latest_event.video.cctv_name or latest_event.video.filename,
                 "address": latest_event.video.location or "주소 정보 없음",
                 "timestamp": latest_event.timestamp.isoformat(),
-                "description": latest_event.analysis or "상세 분석 정보 없음"
+                "description": latest_event.analysis if latest_event.analysis else "화재 감지됨",
+                "event_type": latest_event.event_type
             }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"최근 이벤트 조회 중 오류 발생: {str(e)}")
+
+    @staticmethod
+    def get_all_latest_events(db: Session) -> List[dict]:
+        """모든 CCTV의 가장 최근 화재 이벤트를 반환합니다."""
+        try:
+            # 모든 활성화된 CCTV 조회
+            videos = db.query(Video).filter(Video.status == "active").all()
+            
+            # 각 CCTV별 최근 이벤트 조회
+            latest_events = []
+            for video in videos:
+                event = LiveService.get_latest_event(db, video.id)
+                if event:
+                    latest_events.append(event)
+            
+            return latest_events
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"최근 이벤트 조회 중 오류 발생: {str(e)}")
 
